@@ -78,12 +78,20 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     }
     var storageURL: URL { store.directory }
 
-    @discardableResult func createMeeting(title: String = "Untitled meeting") -> UUID {
+    private func newMeeting(title: String) -> Meeting {
         var meeting = Meeting(title: title)
         meeting.targetLanguage = UserDefaults.standard.string(forKey: "translationTarget") ?? "english"
         if !["All meetings", "Pinned", "Trash"].contains(notebookFilter) { meeting.notebook = notebookFilter }
+        return meeting
+    }
+    @discardableResult func createMeeting(title: String = "Untitled meeting") -> UUID {
+        let meeting = newMeeting(title: title)
         meetings.insert(meeting, at: 0); selectedID = meeting.id; notebookFilter = "All meetings"; query = ""
         persist(meeting); return meeting.id
+    }
+    private func insertImportedMeeting(_ meeting: Meeting) throws {
+        try store.save(meeting)
+        meetings.insert(meeting, at: 0); selectedID = meeting.id
     }
     func update(_ id: UUID, _ change: (inout Meeting) -> Void, immediate: Bool = false) {
         guard let index = meetings.firstIndex(where: { $0.id == id }) else { return }
@@ -269,12 +277,14 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
             let ext = url.pathExtension.lowercased()
             if ext == "json" {
                 var meeting = try MeetingStore.decode(Data(contentsOf: url)); meeting.id = UUID(); meeting.isTrashed = false
-                meeting.updatedAt = Date(); meetings.insert(meeting, at: 0); selectedID = meeting.id; persist(meeting)
+                meeting.updatedAt = Date()
+                try insertImportedMeeting(meeting)
             } else if ["md", "txt", "markdown"].contains(ext) {
                 let data = try Data(contentsOf: url)
                 guard data.count <= 8 * 1024 * 1024, let text = String(data: data, encoding: .utf8) else { throw CoreError.invalid("Choose a UTF-8 text file smaller than 8 MB.") }
-                let id = createMeeting(title: url.deletingPathExtension().lastPathComponent)
-                update(id, { $0.notes = text }, immediate: true)
+                var meeting = newMeeting(title: url.deletingPathExtension().lastPathComponent)
+                meeting.notes = text
+                try insertImportedMeeting(meeting)
             } else {
                 guard busyID == nil else { throw CoreError.invalid("Wait for the current import or summary to finish.") }
                 let key = try readKey()

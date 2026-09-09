@@ -12,7 +12,9 @@ The app layer owns Keychain, audio capture, WebSocket lifecycle, EventKit, Found
 Meeting documents are separate versioned JSON files under Application Support/Chirpberry/Meetings.
 Writes use atomic replacement with owner-only file permissions.
 Before replacement, the exact encoded bytes must pass the same size, schema, and timing checks as loading.
+Speaker indices are validated when decoding both saved documents and provider events; invalid in-memory indices use an unknown-speaker label without arithmetic overflow.
 Rejected saves preserve the previous durable file and the in-memory document for export; quit is cancelled until saving succeeds.
+JSON and text imports are validated and saved before entering the active notebook. A failed import leaves its source file, existing meetings, and selection unchanged.
 Unreadable files remain untouched and are reported separately from readable meetings.
 Trash is a reversible document flag; the app does not permanently delete meeting files.
 Personal notes and generated notes occupy different fields.

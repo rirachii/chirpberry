@@ -29,4 +29,5 @@ No claim of complete competitor parity or superior accuracy should appear in mar
 
 Real Valsea success and error tests are distinct from recorded protocol fixtures.
 A missing credential does not count as a passed integration test.
-Code signing, Apple notarization, tested OS versions, GitHub publication, Homebrew install, and Vercel deployment must each be reported independently.
+Code signing, Apple notarization, tested OS versions, GitHub publication, Homebrew install, and website deployment must each be reported independently.
+The primary production hosting route is manually dispatched GitHub Pages, gated on the public release and canonical cask; Vercel remains optional.

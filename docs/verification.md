@@ -20,8 +20,10 @@ Fixture responses are synthetic test data and are not evidence of real Valsea su
 
 `bash scripts/test-regressions.sh` runs the focused document and notebook lifecycle regression target on macOS 26+.
 It compiles the production model, connection, and capture sources in an unhosted test bundle, using synthetic provider/capture dependencies and worktree-local document fixtures.
-Coverage includes import ownership, Stop/Pause/abort finalization during quit, failed-save recovery, terminal events, timing bounds, encoded file size, and action-only summaries.
+Coverage includes import ownership and save-before-insertion, Stop/Pause/abort finalization during quit, failed-save recovery, terminal events, timing/speaker bounds, encoded file size, and action-only summaries.
 It does not open the native app, capture audio, read Keychain credentials, or establish a provider connection.
+CI's `macos-26` job builds the native app from a clean checkout, verifies its signatures, and runs this regression target.
+The public release deployment gate has offline tests at `scripts/tests/test_public_release.py`; these are synthetic metadata/download checks, not evidence of a public release or a Pages deployment.
 
 - Native light/dark appearance, narrow-window behavior, keyboard and VoiceOver labels on an unlocked Mac.
 - Real microphone permission denial/approval, start, pause, resume, stop, closing the window, and quitting during capture.
@@ -35,4 +37,5 @@ It does not open the native app, capture audio, read Keychain credentials, or es
 The parent QA session reports that the workstation is unlocked and has verified native example rendering, note editing, action checkboxes, speaker renaming, and JSON persistence with 0600 permissions.
 Those checks were not repeated by the review-fix run; the remaining native and capture acceptance paths above still require verification.
 Provider acceptance is waiting for a Valsea credential; no credential or paid credit purchase is included in the repository.
+The parent reports that a deliberately invalid test key received HTTP 401 from the translations endpoint. No Valsea key has been saved, and live success remains unverified.
 These gates must be completed and recorded before marking the first release verified.

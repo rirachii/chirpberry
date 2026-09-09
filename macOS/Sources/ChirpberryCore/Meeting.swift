@@ -28,6 +28,19 @@ public struct SpeakerUtterance: Codable, Equatable, Sendable {
     public init(speaker: Int?, transcript: String, start: Double? = nil, end: Double? = nil) {
         self.speaker = speaker; self.transcript = transcript; self.start = start; self.end = end
     }
+    private enum CodingKeys: String, CodingKey { case speaker, transcript, start, end }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        speaker = try values.decodeIfPresent(Int.self, forKey: .speaker)
+        guard speaker.map(Self.isValidSpeaker) ?? true else {
+            throw DecodingError.dataCorruptedError(forKey: .speaker, in: values,
+                                                  debugDescription: "Speaker indices must be nonnegative and less than Int.max.")
+        }
+        transcript = try values.decode(String.self, forKey: .transcript)
+        start = try values.decodeIfPresent(Double.self, forKey: .start)
+        end = try values.decodeIfPresent(Double.self, forKey: .end)
+    }
+    public static func isValidSpeaker(_ speaker: Int) -> Bool { speaker >= 0 && speaker < Int.max }
 }
 
 public struct ActionItem: Codable, Identifiable, Equatable, Sendable {
@@ -71,7 +84,10 @@ public struct Meeting: Codable, Identifiable, Equatable, Sendable {
 
     public func speakerName(channel: String, speaker: Int? = nil, scope: String? = nil) -> String {
         let key = Self.speakerKey(channel: channel, speaker: speaker, scope: scope)
-        return speakerNames[key] ?? speaker.map { "\(channel) · Speaker \($0 + 1)" } ?? channel
+        if let name = speakerNames[key] { return name }
+        guard let speaker else { return channel }
+        guard SpeakerUtterance.isValidSpeaker(speaker) else { return "\(channel) · Unknown speaker" }
+        return "\(channel) · Speaker \(speaker + 1)"
     }
     public static func speakerKey(channel: String, speaker: Int?, scope: String?) -> String {
         speaker.map { "\(channel):\(scope.map { $0 + ":" } ?? "")\($0)" } ?? channel

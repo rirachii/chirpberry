@@ -2,6 +2,27 @@ import XCTest
 import ChirpberryCore
 
 final class DocumentRegressionTests: XCTestCase {
+    func testInvalidSpeakerIndicesAreRejectedAndCannotOverflowLabels() throws {
+        for speaker in [Int.max, -1, Int.min] {
+            let utterance = SpeakerUtterance(speaker: speaker, transcript: "Synthetic speaker text")
+            let data = try JSONEncoder().encode(utterance)
+            XCTAssertThrowsError(try JSONDecoder().decode(SpeakerUtterance.self, from: data))
+            var meeting = Meeting()
+            meeting.segments = [.init(timestamp: 0, channel: "Fixture", original: "Synthetic text", utterances: [utterance])]
+            XCTAssertThrowsError(try MeetingStore.decode(MeetingStore.exportJSON(meeting)))
+            XCTAssertEqual(meeting.speakerName(channel: "Fixture", speaker: speaker), "Fixture · Unknown speaker")
+            XCTAssertTrue(meeting.markdown.contains("Unknown speaker: Synthetic speaker text"))
+            let event = try JSONSerialization.data(withJSONObject: ["type": "transcript.final", "text": "Synthetic text",
+                                                                   "utterances": [["speaker": speaker, "transcript": "Synthetic text"]]])
+            XCTAssertThrowsError(try RealtimeEvent.decode(event))
+        }
+        for speaker in [nil, 0, Int.max - 1] as [Int?] {
+            let utterance = SpeakerUtterance(speaker: speaker, transcript: "Valid synthetic speaker")
+            XCTAssertEqual(try JSONDecoder().decode(SpeakerUtterance.self, from: JSONEncoder().encode(utterance)), utterance)
+        }
+        XCTAssertEqual(Meeting().speakerName(channel: "Fixture", speaker: Int.max - 1), "Fixture · Speaker \(Int.max)")
+    }
+
     func testTimestampFormattingHandlesHugeAndNonfiniteValues() {
         XCTAssertEqual(Meeting.timeLabel(65.9), "01:05")
         XCTAssertEqual(Meeting.timeLabel(-1e30), "00:00")

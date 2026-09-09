@@ -13,6 +13,26 @@ jobs:
       - run: swift test --package-path macOS
       - run: swift build --package-path macOS --product chirpberry-mcp
       - run: python3 scripts/test-mcp.py
+  native:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Require Apple Silicon
+        run: test "$(uname -m)" = arm64
+      - name: Ensure XcodeGen is available
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+      - name: Build from the clean checkout
+        run: bash scripts/build.sh
+      - name: Verify bundle architecture and signatures
+        run: |
+          test "$(lipo -archs dist-native/Chirpberry.app/Contents/MacOS/Chirpberry)" = arm64
+          test "$(lipo -archs dist-native/Chirpberry.app/Contents/Resources/bin/chirpberry-mcp)" = arm64
+          codesign --verify --deep --strict dist-native/Chirpberry.app
+      - name: Run native regression tests
+        run: bash scripts/test-regressions.sh
   website:
     runs-on: ubuntu-latest
     defaults:
@@ -27,6 +47,9 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - run: npm ci
       - run: npm test
+      - name: Test public release deployment gate
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/tests -p 'test_public_release.py'
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

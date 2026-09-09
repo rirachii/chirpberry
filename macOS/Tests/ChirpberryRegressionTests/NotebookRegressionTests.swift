@@ -20,6 +20,69 @@ import ChirpberryCore
                              makeConnection: { _, _, _ in connection }, makeCapture: { audio }, makeProvider: { _ in provider })
     }
 
+    func testOversizedJSONImportLeavesNotebookAndOriginalFileUntouched() async throws {
+        let root = try directory(); let documents = root.appendingPathComponent("Meetings")
+        let notebook = model(directory: documents)
+        let existingID = notebook.createMeeting(title: "Existing meeting")
+        notebook.update(existingID, { $0.notes = "Keep this document" }, immediate: true)
+        let existing = notebook.meetings
+        let savedURL = documents.appendingPathComponent(existingID.uuidString + ".json")
+        let durable = try Data(contentsOf: savedURL)
+        var imported = Meeting(title: "Oversized import")
+        imported.attendees = Array(repeating: "", count: 1000)
+        imported.segments = [.init(timestamp: 0, channel: "Fixture", original: "")]
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let overhead = try encoder.encode(imported).count
+        imported.segments[0].original = String(repeating: "x", count: 32 * 1024 * 1024 - overhead - 1)
+        let source = try encoder.encode(imported)
+        XCTAssertLessThan(source.count, 32 * 1024 * 1024)
+        XCTAssertGreaterThan(try MeetingStore.exportJSON(MeetingStore.decode(source)).count, 32 * 1024 * 1024)
+        let sourceURL = root.appendingPathComponent("source.json"); try source.write(to: sourceURL)
+        await notebook.importFile(sourceURL)
+        XCTAssertNotNil(notebook.message)
+        XCTAssertEqual(notebook.meetings, existing)
+        XCTAssertEqual(notebook.selectedID, existingID)
+        XCTAssertTrue(notebook.unsavedIDs.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: sourceURL), source)
+        XCTAssertEqual(try Data(contentsOf: savedURL), durable)
+        XCTAssertEqual(try MeetingStore(directory: documents).load().meetings.count, 1)
+        let mayQuit = await notebook.prepareToQuit()
+        XCTAssertTrue(mayQuit)
+    }
+
+    func testFailedDocumentImportsDoNotEnterNotebookAndCanBeRetried() async throws {
+        for ext in ["json", "txt"] {
+            let root = try directory(); let documents = root.appendingPathComponent("Meetings")
+            let backup = root.appendingPathComponent("Previous")
+            let notebook = model(directory: documents)
+            let existingID = notebook.createMeeting()
+            let original = notebook.meetings
+            var imported = Meeting(title: "Imported meeting"); imported.notes = "Original source notes"; imported.isTrashed = true
+            let data = ext == "json" ? try MeetingStore.exportJSON(imported) : Data(imported.notes.utf8)
+            let source = root.appendingPathComponent("import.\(ext)"); try data.write(to: source)
+            try FileManager.default.moveItem(at: documents, to: backup)
+            try Data("Blocked storage".utf8).write(to: documents)
+            await notebook.importFile(source)
+            XCTAssertEqual(notebook.meetings, original)
+            XCTAssertEqual(notebook.selectedID, existingID)
+            XCTAssertTrue(notebook.unsavedIDs.isEmpty)
+            XCTAssertEqual(try Data(contentsOf: source), data)
+            try FileManager.default.removeItem(at: documents)
+            try FileManager.default.moveItem(at: backup, to: documents)
+            await notebook.importFile(source)
+            let selected = try XCTUnwrap(notebook.selected)
+            XCTAssertNotEqual(selected.id, imported.id)
+            XCTAssertFalse(selected.isTrashed)
+            XCTAssertEqual(selected.notes, imported.notes)
+            let saved = try XCTUnwrap(try MeetingStore(directory: documents).load().meetings.first { $0.id == selected.id })
+            XCTAssertEqual(saved.notes, selected.notes)
+            XCTAssertEqual(saved.isTrashed, selected.isTrashed)
+            XCTAssertEqual(try Data(contentsOf: source), data)
+            let mayQuit = await notebook.prepareToQuit()
+            XCTAssertTrue(mayQuit)
+        }
+    }
+
     func testImportBlocksRecordingAndPreservesEverySegment() async throws {
         let root = try directory()
         let provider = FixtureProvider()

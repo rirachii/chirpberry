@@ -32,7 +32,7 @@ struct MeetingEditor: View {
                             if meeting.notes.isEmpty { Text("What matters to you?\nJot down names, questions, and the little things.").foregroundStyle(.tertiary).padding(.top, 8).padding(.leading, 6).allowsHitTesting(false) }
                             TextEditor(text: binding(\.notes)).font(.system(size: 15)).scrollContentBackground(.hidden).accessibilityLabel("My notes editor")
                         }.padding(.horizontal, 20).padding(.bottom, 20)
-                    } else if meeting.enhancedNotes.isEmpty {
+                    } else if !meeting.hasEnhancedContent {
                         VStack(spacing: 14) {
                             Image(systemName: "sparkles").font(.largeTitle).foregroundStyle(Brand.berry)
                             Text("Your notes, with the gaps filled in.").font(.headline)
@@ -107,7 +107,7 @@ struct MeetingEditor: View {
     @ViewBuilder private var enhanceButton: some View {
         if model.busyID == meetingID { ProgressView("Enhancing…").controlSize(.small) }
         else {
-            Button { Task { await model.enhance(meetingID); if !meeting.enhancedNotes.isEmpty { tab = "Enhanced" } } } label: { Label("Enhance notes", systemImage: "sparkles") }
+            Button { Task { await model.enhance(meetingID); if meeting.hasEnhancedContent { tab = "Enhanced" } } } label: { Label("Enhance notes", systemImage: "sparkles") }
                 .disabled(model.busyID != nil || (meeting.notes.isEmpty && meeting.segments.isEmpty) || meeting.isTrashed)
         }
     }

@@ -17,6 +17,8 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     @Published var elapsed: Double = 0
     @Published var message: String?
     @Published var busyID: UUID?
+    @Published private(set) var importingID: UUID?
+    @Published private(set) var unsavedIDs: Set<UUID> = []
     @Published var upcoming: [EKEvent] = []
     @Published var calendarConnected = false
     @Published var showSettings = false
@@ -27,22 +29,36 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     @Published var exportKind: String?
 
     private let store: MeetingStore
+    private let readKey: () throws -> String
+    private let makeConnection: @MainActor (String, String, RealtimeConfiguration) -> any RealtimeStreaming
+    private let makeCapture: () -> any AudioCapturing
+    private let makeProvider: (String) -> any NotebookProvider
     private let calendar = EKEventStore()
     private var saves: [UUID: Task<Void, Never>] = [:]
-    private var connections: [String: RealtimeConnection] = [:]
-    private var capture: AudioCapture?
+    private var connections: [String: any RealtimeStreaming] = [:]
+    private var capture: (any AudioCapturing)?
     private var reducer = TranscriptReducer()
     private var startedAt: Date?
     private var offset: Double = 0
     private var ticker: Task<Void, Never>?
     private var sessionToken = UUID()
+    private var finalization: Task<Void, Never>?
+    private var pauseAfterFinalization = false
 
-    init() {
+    init(store: MeetingStore? = nil,
+         readKey: @escaping () throws -> String = { try ValseaKeychain.read() },
+         makeConnection: @escaping @MainActor (String, String, RealtimeConfiguration) -> any RealtimeStreaming = {
+             RealtimeConnection(channel: $0, key: $1, configuration: $2)
+         },
+         makeCapture: @escaping () -> any AudioCapturing = { AudioCapture() },
+         makeProvider: @escaping (String) -> any NotebookProvider = { ValseaREST(key: $0) }) {
         // UI acceptance runs use an isolated document directory without touching the user's notes.
         let testPath = ProcessInfo.processInfo.environment["CHIRPBERRY_DOCUMENTS_DIR"]
-        store = MeetingStore(directory: testPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? MeetingStore.defaultDirectory)
+        self.store = store ?? MeetingStore(directory: testPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? MeetingStore.defaultDirectory)
+        self.readKey = readKey; self.makeConnection = makeConnection
+        self.makeCapture = makeCapture; self.makeProvider = makeProvider
         do {
-            let loaded = try store.load(); meetings = loaded.meetings; selectedID = meetings.first(where: { !$0.isTrashed })?.id
+            let loaded = try self.store.load(); meetings = loaded.meetings; selectedID = meetings.first(where: { !$0.isTrashed })?.id
             if !loaded.unreadable.isEmpty { message = "\(loaded.unreadable.count) meeting file(s) could not be opened. They have been preserved in the storage folder." }
         } catch { message = "The notebook could not be opened: \(error.localizedDescription)" }
     }
@@ -56,6 +72,10 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         }.sorted { $0.isPinned != $1.isPinned ? $0.isPinned : $0.updatedAt > $1.updatedAt }
     }
     var active: Bool { recordingState != .idle }
+    var recordingBlockedByImport: Bool {
+        guard let importingID else { return false }
+        return importingID == (recordingState == .paused ? recordingID : selectedID)
+    }
     var storageURL: URL { store.directory }
 
     @discardableResult func createMeeting(title: String = "Untitled meeting") -> UUID {
@@ -68,22 +88,36 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     func update(_ id: UUID, _ change: (inout Meeting) -> Void, immediate: Bool = false) {
         guard let index = meetings.firstIndex(where: { $0.id == id }) else { return }
         change(&meetings[index]); meetings[index].updatedAt = Date()
+        unsavedIDs.insert(id)
         saves[id]?.cancel()
-        if immediate { persist(meetings[index]); return }
+        if immediate { saves[id] = nil; persist(meetings[index]); return }
         saves[id] = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
             guard let self, let meeting = self.meetings.first(where: { $0.id == id }) else { return }
             self.persist(meeting); self.saves[id] = nil
         }
     }
-    func flush() { for task in saves.values { task.cancel() }; saves.removeAll(); for meeting in meetings { persist(meeting) } }
-    private func persist(_ meeting: Meeting) {
-        do { try store.save(meeting) } catch {
+    @discardableResult func flush() -> Bool {
+        for task in saves.values { task.cancel() }
+        saves.removeAll()
+        var saved = true
+        for meeting in meetings { if !persist(meeting) { saved = false } }
+        if !saved, let id = meetings.first(where: { unsavedIDs.contains($0.id) })?.id { selectedID = id }
+        return saved
+    }
+    func prepareToQuit() async -> Bool {
+        await stopRecording()
+        return flush()
+    }
+    @discardableResult private func persist(_ meeting: Meeting) -> Bool {
+        do { try store.save(meeting); unsavedIDs.remove(meeting.id); return true } catch {
+            unsavedIDs.insert(meeting.id)
             let reason = "Could not save this meeting: \(error.localizedDescription). Keep Chirpberry open and export a copy."
             message = reason
             if active, recordingState != .finishing {
                 Task { await abortRecording(reason) }
             }
+            return false
         }
     }
     func trash(_ id: UUID) {
@@ -92,6 +126,7 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         selectedID = visibleMeetings.first?.id
     }
     func openRecordingSetup() {
+        guard !recordingBlockedByImport else { message = "Wait for this meeting's audio import to finish before recording."; return }
         if recordingState == .paused { Task { await resume() }; return }
         guard recordingState == .idle else { selectedID = recordingID; return }
         if selected == nil || selected?.isTrashed == true { createMeeting() }
@@ -101,11 +136,12 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         guard recordingState == .idle || recordingState == .paused,
               let id = recordingState == .paused ? recordingID : selectedID,
               let meeting = meetings.first(where: { $0.id == id }) else { return }
+        guard id != importingID else { message = "Wait for this meeting's audio import to finish before recording."; return }
         let token = UUID(); sessionToken = token
         recordingState = .connecting; recordingID = id; selectedID = id; message = nil
         offset = meeting.duration; elapsed = offset
         do {
-            let key = try ValseaKeychain.read()
+            let key = try readKey()
             guard !key.isEmpty else { throw CoreError.invalid("Add your Valsea API key in Settings before starting.") }
             let system = UserDefaults.standard.bool(forKey: "includeSystemAudio")
             var config = RealtimeConfiguration()
@@ -117,7 +153,7 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
             let channels = system ? ["Microphone", "Mac audio"] : ["Microphone"]
             reducer = TranscriptReducer(); partials = [:]
             for channel in channels {
-                let connection = RealtimeConnection(channel: channel, key: key, configuration: config)
+                let connection = makeConnection(channel, key, config)
                 connection.onEvent = { [weak self] event in
                     guard let self, self.sessionToken == token else { return }
                     if let segment = self.reducer.apply(event, channel: channel, offset: self.offset, speakerScope: token.uuidString) {
@@ -133,7 +169,7 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
             }
             for channel in channels { try await connections[channel]?.connect() }
             guard sessionToken == token, recordingState == .connecting else { return }
-            let audio = AudioCapture()
+            let audio = makeCapture()
             audio.onAudio = { [weak self] data, channel, level in
                 Task { @MainActor in
                     guard let self, self.sessionToken == token, self.recordingState == .recording else { return }
@@ -158,41 +194,61 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     }
     func resume() async { guard recordingState == .paused else { return }; await startRecording() }
     func stopRecording(pause: Bool = false) async {
-        guard recordingState != .idle, recordingState != .finishing else { return }
-        if recordingState == .connecting { await abortRecording("Connection cancelled."); return }
-        let id = recordingID
-        recordingState = .finishing
-        await capture?.stop(); capture = nil
-        ticker?.cancel(); ticker = nil
-        if let startedAt { elapsed = offset + Date().timeIntervalSince(startedAt) }
-        startedAt = nil
-        let finishingConnections = Array(connections.values)
-        await withTaskGroup(of: Void.self) { group in
-            for connection in finishingConnections { group.addTask { await connection.finish() } }
+        if let finalization {
+            if !pause { pauseAfterFinalization = false }
+            await finalization.value
+            return
         }
-        connections.removeAll(); levels = [:]
-        if let id { update(id, { $0.duration = elapsed }, immediate: true) }
-        if partials.values.contains(where: { !$0.isEmpty }) { message = "Some provisional text did not receive a final result before the connection closed. Saved final segments are retained." }
-        partials = [:]; recordingState = pause ? .paused : .idle
-        if !pause { recordingID = nil }
+        guard recordingState != .idle else { return }
+        if recordingState == .connecting { await abortRecording("Connection cancelled."); return }
+        await finalizeRecording(pause: pause)
     }
     func abortRecording(_ reason: String) async {
+        if let finalization {
+            pauseAfterFinalization = false; message = reason
+            await finalization.value
+            return
+        }
         guard recordingState != .idle else { return }
-        if recordingState == .finishing { message = reason; return }
+        await finalizeRecording(pause: false, failure: reason)
+    }
+    private func finalizeRecording(pause: Bool, failure: String? = nil) async {
+        pauseAfterFinalization = pause
         recordingState = .finishing
-        sessionToken = UUID(); ticker?.cancel(); ticker = nil
-        for connection in connections.values { connection.close() }; connections.removeAll()
-        await capture?.stop(); capture = nil
-        if let startedAt { elapsed = offset + Date().timeIntervalSince(startedAt) }
-        if let id = recordingID { update(id, { $0.duration = elapsed }, immediate: true) }
-        startedAt = nil; levels = [:]; partials = [:]; recordingState = .idle; recordingID = nil; message = reason
+        let task = Task {
+            let id = recordingID
+            if let failure {
+                message = failure; sessionToken = UUID()
+                for connection in connections.values { connection.close() }
+            }
+            await capture?.stop(); capture = nil
+            ticker?.cancel(); ticker = nil
+            if let startedAt { elapsed = offset + Date().timeIntervalSince(startedAt) }
+            startedAt = nil
+            if failure == nil {
+                let finishingConnections = Array(connections.values)
+                await withTaskGroup(of: Void.self) { group in
+                    for connection in finishingConnections { group.addTask { await connection.finish() } }
+                }
+            }
+            connections.removeAll(); levels = [:]; sessionToken = UUID()
+            if let id { update(id, { $0.duration = elapsed }, immediate: true) }
+            if partials.values.contains(where: { !$0.isEmpty }), message == nil {
+                message = "Some provisional text did not receive a final result before the connection closed. Saved final segments are retained."
+            }
+            partials = [:]; recordingState = pauseAfterFinalization ? .paused : .idle
+            if !pauseAfterFinalization { recordingID = nil }
+            finalization = nil
+        }
+        finalization = task
+        await task.value
     }
     func enhance(_ id: UUID) async {
         guard busyID == nil, let meeting = meetings.first(where: { $0.id == id }) else { return }
         busyID = id; message = nil
         defer { busyID = nil }
         do {
-            let api = ValseaREST(key: try ValseaKeychain.read())
+            let api = makeProvider(try readKey())
             let result = try await api.format(meeting)
             update(id, { document in
                 document.enhancedNotes = result.markdown
@@ -221,18 +277,23 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
                 update(id, { $0.notes = text }, immediate: true)
             } else {
                 guard busyID == nil else { throw CoreError.invalid("Wait for the current import or summary to finish.") }
-                let key = try ValseaKeychain.read()
+                let key = try readKey()
                 guard !key.isEmpty else { throw CoreError.invalid("Add your Valsea key in Settings to transcribe audio files.") }
                 let id = createMeeting(title: url.deletingPathExtension().lastPathComponent); busyID = id
-                defer { busyID = nil }
-                let api = ValseaREST(key: key)
+                importingID = id
+                defer { importingID = nil; busyID = nil }
+                let api = makeProvider(key)
                 let text = try await api.transcribe(file: url)
                 let segment = TranscriptSegment(timestamp: 0, channel: "Imported audio", original: text)
-                update(id, { $0.segments = [segment] }, immediate: true)
+                update(id, { $0.segments.append(segment) }, immediate: true)
                 if UserDefaults.standard.object(forKey: "enableTranslation") as? Bool != false {
                     let target = meetings.first { $0.id == id }!.targetLanguage
                     let translation = try await api.translate(text, target: target)
-                    update(id, { $0.segments[0].translation = translation; $0.segments[0].targetLanguage = target }, immediate: true)
+                    update(id, {
+                        if let index = $0.segments.firstIndex(where: { $0.id == segment.id }) {
+                            $0.segments[index].translation = translation; $0.segments[index].targetLanguage = target
+                        }
+                    }, immediate: true)
                 }
             }
             notebookFilter = "All meetings"; query = ""

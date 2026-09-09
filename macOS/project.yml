@@ -34,7 +34,29 @@ targets:
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: NO
         COMBINE_HIDPI_IMAGES: YES
+  ChirpberryRegressionTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/ChirpberryRegressionTests
+      - path: App/NotebookModel.swift
+      - path: App/NotebookServices.swift
+      - path: App/RealtimeConnection.swift
+      - path: App/AudioCapture.swift
+      - path: App/Keychain.swift
+    dependencies:
+      - package: ChirpberryCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
+  ChirpberryRegressionTests:
+    build:
+      targets:
+        ChirpberryRegressionTests: all
+    test:
+      targets:
+        - ChirpberryRegressionTests
   Chirpberry:
     build:
       targets:

@@ -1,7 +1,7 @@
 import Foundation
 import ChirpberryCore
 
-@MainActor final class RealtimeConnection {
+@MainActor final class RealtimeConnection: RealtimeStreaming {
     let channel: String
     var onEvent: ((RealtimeEvent) -> Void)?
     var onFailure: ((String) -> Void)?
@@ -104,25 +104,30 @@ import ChirpberryCore
                 let message = try await socket.receive()
                 let data: Data
                 switch message { case .data(let value): data = value; case .string(let value): data = Data(value.utf8); @unknown default: continue }
-                let event = try RealtimeEvent.decode(data)
-                switch event.type {
-                case "session.created":
-                    if !sentConfiguration {
-                        sentConfiguration = true
-                        try await socket.send(.string(String(decoding: configuration.startMessage(), as: UTF8.self)))
-                    }
-                case "session.ready":
-                    ready = true; timeout?.cancel(); readyContinuation?.resume(); readyContinuation = nil
-                case "session.stopped", "session.ended": close()
-                case "error":
-                    let code = event.code ?? "UNKNOWN"
-                    fail("Valsea reported \(code). Check your key, credits, language settings, and connection before resuming.")
-                default: onEvent?(event)
-                }
+                try await receive(RealtimeEvent.decode(data))
             }
         } catch {
             if finishing { close() }
             else if !closed { fail("Unable to maintain the Valsea connection. Check the API key, credits, and network. Saved notes are preserved.") }
+        }
+    }
+    func receive(_ event: RealtimeEvent) async throws {
+        guard !closed else { return }
+        switch event.type {
+        case "session.created":
+            if !sentConfiguration {
+                sentConfiguration = true
+                try await socket.send(.string(String(decoding: configuration.startMessage(), as: UTF8.self)))
+            }
+        case "session.ready":
+            ready = true; timeout?.cancel(); readyContinuation?.resume(); readyContinuation = nil
+        case "session.stopped", "session.ended":
+            if finishing { close() }
+            else { fail("Valsea ended the session unexpectedly. Capture stopped; saved final segments are retained.") }
+        case "error":
+            let code = event.code ?? "UNKNOWN"
+            fail("Valsea reported \(code). Check your key, credits, language settings, and connection before resuming.")
+        default: onEvent?(event)
         }
     }
     private func fail(_ message: String) {

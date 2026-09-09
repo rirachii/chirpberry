@@ -25,7 +25,7 @@ struct NotebookView: View {
                     Button { model.showAsk = true } label: { Label("Ask your notes", systemImage: "sparkle.magnifyingglass").frame(maxWidth: .infinity, alignment: .leading) }
                     Divider()
                     HStack {
-                        Label("Saved on this Mac", systemImage: "internaldrive").font(.caption).foregroundStyle(.secondary)
+                        Label(model.unsavedIDs.isEmpty ? "Saved on this Mac" : "Unsaved changes", systemImage: "internaldrive").font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         Button { model.showSettings = true } label: { Image(systemName: "gearshape") }.help("Settings").accessibilityLabel("Settings")
                     }
@@ -84,6 +84,7 @@ struct NotebookView: View {
                 if model.recordingState == .idle || model.recordingState == .paused {
                     Button { model.openRecordingSetup() } label: { Label(model.recordingState == .paused ? "Resume" : "Record meeting", systemImage: "mic") }
                         .buttonStyle(.borderedProminent).tint(Brand.berry)
+                        .disabled(model.recordingBlockedByImport)
                 }
             }
         }

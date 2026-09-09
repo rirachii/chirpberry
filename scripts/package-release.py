@@ -40,7 +40,7 @@ def main():
     source = output / f'Chirpberry-{version}-source.zip'
     if dmg.exists() or source.exists():
         raise SystemExit(f'Release artifacts already exist in {output}; preserve them or choose a new version.')
-    with tempfile.TemporaryDirectory(prefix='chirpberry-release-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='chirpberry-release-', dir=ROOT / 'dist-native') as temporary:
         temporary = Path(temporary)
         checkout = temporary / 'source'; checkout.mkdir()
         archive = temporary / 'source.zip'
@@ -68,7 +68,8 @@ def main():
             'Inform participants before recording. Chirpberry does not save audio recordings.\n\n'
             f'Source revision: {commit}\nhttps://github.com/rirachii/chirpberry\n')
         run('hdiutil', 'create', '-volname', 'Chirpberry', '-srcfolder', str(stage), '-format', 'UDZO', '-ov', str(dmg))
-        mounted = plistlib.loads(subprocess.check_output(['hdiutil', 'attach', '-readonly', '-nobrowse', '-plist', str(dmg)]))
+        mountpoint = temporary / 'mounted'; mountpoint.mkdir()
+        mounted = plistlib.loads(subprocess.check_output(['hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', str(mountpoint), '-plist', str(dmg)]))
         mount = next(Path(item['mount-point']) for item in mounted['system-entities'] if 'mount-point' in item)
         try:
             run('codesign', '--verify', '--deep', '--strict', str(mount / 'Chirpberry.app'))

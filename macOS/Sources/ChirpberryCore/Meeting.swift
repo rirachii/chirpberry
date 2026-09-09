@@ -67,6 +67,7 @@ public struct Meeting: Codable, Identifiable, Equatable, Sendable {
     public var isTrashed = false
     public var isPinned = false
     public init(title: String = "Untitled meeting") { self.title = title }
+    public var hasEnhancedContent: Bool { !enhancedNotes.isEmpty || !actions.isEmpty }
 
     public func speakerName(channel: String, speaker: Int? = nil, scope: String? = nil) -> String {
         let key = Self.speakerKey(channel: channel, speaker: speaker, scope: scope)
@@ -103,8 +104,12 @@ public struct Meeting: Codable, Identifiable, Equatable, Sendable {
         return sections.joined(separator: "\n\n") + "\n"
     }
     public static func timeLabel(_ seconds: Double) -> String {
-        let value = max(0, Int(seconds.isFinite ? seconds : 0))
-        return String(format: "%02d:%02d", value / 60, value % 60)
+        let value = Int(seconds.isFinite ? min(maximumTimestamp, max(0, seconds)) : 0)
+        return String(format: "%02ld:%02ld", value / 60, value % 60)
+    }
+    public static let maximumTimestamp = Double(Int.max).nextDown
+    public static func isValidTimestamp(_ seconds: Double) -> Bool {
+        seconds.isFinite && seconds >= 0 && seconds <= maximumTimestamp
     }
 }
 

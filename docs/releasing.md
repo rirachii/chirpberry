@@ -22,6 +22,7 @@ python3 scripts/package-release.py
 
 The script refuses a dirty working tree or an existing artifact path.
 It builds a temporary checkout from the exact Git revision, verifies the architecture and signatures, creates a DMG with an Applications link and installation notes, mounts it read-only, and checks the bundled MCP helper.
+The temporary source checkout, staging files, and mount point stay under the worktree's ignored `dist-native` directory.
 It creates a versioned source archive, release manifest, and SHA-256 checksums under `dist-native/releases/vVERSION`.
 The source commit in `release.json` must match the public tag.
 Packaging checks do not replace native or provider acceptance.

@@ -2,7 +2,7 @@ import AVFoundation
 import ScreenCaptureKit
 import ChirpberryCore
 
-final class AudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
+final class AudioCapture: NSObject, SCStreamOutput, SCStreamDelegate, AudioCapturing {
     var onAudio: ((Data, String, Float) -> Void)?
     var onFailure: ((String) -> Void)?
     private var stream: SCStream?

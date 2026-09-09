@@ -11,6 +11,8 @@ The app layer owns Keychain, audio capture, WebSocket lifecycle, EventKit, Found
 
 Meeting documents are separate versioned JSON files under Application Support/Chirpberry/Meetings.
 Writes use atomic replacement with owner-only file permissions.
+Before replacement, the exact encoded bytes must pass the same size, schema, and timing checks as loading.
+Rejected saves preserve the previous durable file and the in-memory document for export; quit is cancelled until saving succeeds.
 Unreadable files remain untouched and are reported separately from readable meetings.
 Trash is a reversible document flag; the app does not permanently delete meeting files.
 Personal notes and generated notes occupy different fields.
@@ -20,6 +22,7 @@ Audio goes directly to api.valsea.ai over an authenticated encrypted WebSocket.
 The key is stored in macOS Keychain and sent in an Authorization header, never a query string.
 Chirpberry does not save microphone or computer-audio recordings.
 Audio-file import uploads the explicitly selected source file through the batch API without changing the original.
+The importing meeting cannot start or resume capture until transcription and optional translation finish; other meetings remain available.
 Enhance notes sends the selected meeting's notes and transcript to Valsea's formatting endpoint.
 Provider policies and charges apply to hosted processing.
 
@@ -41,6 +44,8 @@ Speaker identities are scoped to the capture session, so a resumed session does 
 Provider timestamps are displayed as segment timing; word-accurate timing is not claimed.
 Pause stops capture and ends provider streams; resume creates new streams.
 Stop drains queued audio and waits for final events for a bounded period.
+Stop, Pause, failure cleanup, window close, and quit share one finalization task. A Stop or quit request supersedes a pending Pause and waits for its final events before flushing documents.
+An unexpected provider terminal event notifies the notebook owner and stops capture.
 Errors retain saved notes and final segments; unsaved audio cannot be recovered because the app does not record it to disk.
 
 ## Meeting knowledge

@@ -5,6 +5,7 @@ cd "$project_dir"
 swift test --package-path macOS
 swift build --package-path macOS --product chirpberry-mcp
 python3 scripts/test-mcp.py
+bash scripts/test-regressions.sh
 npm test --prefix site
 npm run build --prefix site
 scripts/build.sh

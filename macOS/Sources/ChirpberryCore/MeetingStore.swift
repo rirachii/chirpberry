@@ -8,11 +8,12 @@ public struct MeetingStore: Sendable {
             .appendingPathComponent("Chirpberry/Meetings", isDirectory: true)
     }
     public func save(_ meeting: Meeting) throws {
+        let data = try Self.exportJSON(meeting)
+        _ = try Self.decode(data)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                               attributes: [.posixPermissions: 0o700])
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601
         let url = directory.appendingPathComponent(meeting.id.uuidString + ".json")
-        try encoder.encode(meeting).write(to: url, options: [.atomic])
+        try data.write(to: url, options: [.atomic])
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
     public func load() throws -> (meetings: [Meeting], unreadable: [String]) {
@@ -34,6 +35,12 @@ public struct MeetingStore: Sendable {
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let value = try decoder.decode(Meeting.self, from: data)
         guard value.schemaVersion == 1 else { throw CoreError.invalid("This meeting uses a newer file format.") }
+        guard Meeting.isValidTimestamp(value.duration), value.segments.allSatisfy({ segment in
+            Meeting.isValidTimestamp(segment.timestamp) && segment.utterances.allSatisfy { utterance in
+                (utterance.start.map(Meeting.isValidTimestamp) ?? true) &&
+                (utterance.end.map(Meeting.isValidTimestamp) ?? true)
+            }
+        }) else { throw CoreError.invalid("Meeting timestamps must be finite, nonnegative, and within the supported range.") }
         return value
     }
     public static func exportJSON(_ meeting: Meeting) throws -> Data {

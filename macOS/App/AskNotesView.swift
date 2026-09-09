@@ -40,7 +40,7 @@ struct AskNotesView: View {
                     ForEach(Array(hits.enumerated()), id: \.element.id) { index, hit in
                         VStack(alignment: .leading, spacing: 8) {
                             Button { model.selectedID = hit.id; model.notebookFilter = "All meetings"; model.query = ""; dismiss() } label: {
-                                Label("[\(index + 1)] \(hit.meeting.title)", systemImage: citations.contains(index + 1) ? "checkmark.quote" : "doc.text")
+                                Label("[\(index + 1)] \(hit.meeting.title)", systemImage: citations.contains(index + 1) ? "checkmark.circle" : "doc.text")
                                     .font(.headline)
                             }.buttonStyle(.plain).foregroundStyle(Brand.berry)
                             Text(hit.excerpt).font(.callout).lineLimit(7).textSelection(.enabled)

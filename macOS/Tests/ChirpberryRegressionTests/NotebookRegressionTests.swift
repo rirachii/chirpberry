@@ -237,6 +237,89 @@ import ChirpberryCore
         try await connection.receive(event("session.ended"))
         XCTAssertEqual(failures, 0)
     }
+
+    func testBilingualNotebookJourneyPreservesNotesThroughExportImportAndRestore() async throws {
+        let root = try directory(); let documents = root.appendingPathComponent("Meetings")
+        let connection = FixtureConnection(); let audio = FixtureCapture()
+        let provider = FixtureProvider()
+        provider.formattedResponse = #"{"summary":"Synthetic summary: hand off on Friday.","action_items":[{"description":"Synthetic action"}]}"#
+        let notebook = model(directory: documents, audio: audio, connection: connection, provider: provider)
+        let id = notebook.createMeeting(title: "Synthetic bilingual launch review")
+        let originalNotes = "Synthetic acceptance fixture, not a recorded meeting.\nKeep my Friday handoff notes unchanged."
+        notebook.update(id, { $0.notes = originalNotes; $0.targetLanguage = "english" }, immediate: true)
+        await notebook.startRecording()
+        XCTAssertEqual(notebook.recordingState, .recording)
+        try await connection.connection.receive(event("transcript.partial", text: "Provisional words must not persist"))
+        XCTAssertFalse(notebook.partials.isEmpty)
+        XCTAssertTrue(try XCTUnwrap(try MeetingStore(directory: documents).load().meetings.first).segments.isEmpty)
+        let final = try RealtimeEvent.decode(JSONSerialization.data(withJSONObject: [
+            "type": "transcript.final", "event_id": "synthetic-final-1", "timestampMs": 2000,
+            "translated": true, "rawText": "我们周五交接。", "text": "We will hand off on Friday.",
+            "sourceLanguage": "chinese", "targetLanguage": "english",
+            "utterances": [["speaker": 0, "transcript": "我们周五交接。"]]
+        ]))
+        try await connection.connection.receive(final)
+        try await connection.connection.receive(final)
+        await notebook.stopRecording()
+        XCTAssertEqual(audio.stopCount, 1)
+        XCTAssertEqual(notebook.recordingState, .idle)
+        let segment = try XCTUnwrap(notebook.selected?.segments.first)
+        XCTAssertEqual(notebook.selected?.segments.count, 1)
+        XCTAssertEqual(segment.original, "我们周五交接。")
+        XCTAssertEqual(segment.translation, "We will hand off on Friday.")
+        XCTAssertNil(segment.utterances.first?.start)
+        XCTAssertNil(segment.utterances.first?.end)
+        notebook.update(id, {
+            $0.speakerNames[Meeting.speakerKey(channel: segment.channel, speaker: 0, scope: segment.speakerScope)] = "Example speaker"
+        }, immediate: true)
+        await notebook.enhance(id)
+        let actionID = try XCTUnwrap(notebook.selected?.actions.first?.id)
+        notebook.update(id, { $0.actions[0].completed = true }, immediate: true)
+        await notebook.enhance(id)
+        XCTAssertEqual(notebook.selected?.notes, originalNotes)
+        XCTAssertEqual(notebook.selected?.actions.first?.id, actionID)
+        XCTAssertEqual(notebook.selected?.actions.first?.completed, true)
+        let mayQuit = await notebook.prepareToQuit()
+        XCTAssertTrue(mayQuit)
+
+        let relaunched = model(directory: documents)
+        let restored = try XCTUnwrap(relaunched.selected)
+        XCTAssertEqual(restored.notes, originalNotes)
+        XCTAssertTrue(restored.enhancedNotes.contains("Synthetic summary: hand off on Friday."))
+        XCTAssertEqual(MeetingSearch.search("Friday", in: relaunched.meetings).first?.id, id)
+        XCTAssertEqual(MeetingSearch.search("交接", in: relaunched.meetings).first?.id, id)
+        XCTAssertTrue(restored.markdown.contains("Example speaker: 我们周五交接。"))
+        XCTAssertTrue(restored.markdown.contains("- [x] Synthetic action"))
+        XCTAssertFalse(restored.markdown.contains("Provisional words"))
+        let json = try MeetingStore.exportJSON(restored)
+        XCTAssertFalse(String(decoding: json, as: UTF8.self).contains("synthetic-test-key"))
+        let export = root.appendingPathComponent("export.json"); try json.write(to: export)
+        await relaunched.importFile(export)
+        let imported = try XCTUnwrap(relaunched.selected)
+        XCTAssertNotEqual(imported.id, id)
+        XCTAssertEqual(imported.notes, originalNotes)
+        XCTAssertEqual(imported.enhancedNotes, restored.enhancedNotes)
+        XCTAssertEqual(imported.segments, restored.segments)
+        XCTAssertEqual(imported.actions, restored.actions)
+        XCTAssertEqual(try Data(contentsOf: export), json)
+        relaunched.trash(imported.id)
+        XCTAssertFalse(relaunched.visibleMeetings.contains { $0.id == imported.id })
+        relaunched.trash(imported.id)
+        XCTAssertTrue(relaunched.visibleMeetings.contains { $0.id == imported.id })
+        let saved = try XCTUnwrap(try MeetingStore(directory: documents).load().meetings.first { $0.id == id })
+        XCTAssertEqual(saved, restored)
+        let savedURL = documents.appendingPathComponent(id.uuidString + ".json")
+        let attributes = try FileManager.default.attributesOfItem(atPath: savedURL.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: documents.path).allSatisfy { $0.hasSuffix(".json") })
+
+        // Opt-in evidence contains only this synthetic fixture, never the user's notebook.
+        if let path = ProcessInfo.processInfo.environment["CHIRPBERRY_TEST_EVIDENCE_DIR"] {
+            let evidence = URL(fileURLWithPath: path, isDirectory: true)
+            try MeetingStore(directory: evidence.appendingPathComponent("Meetings")).save(saved)
+            try saved.markdown.write(to: evidence.appendingPathComponent("notebook-export.md"), atomically: true, encoding: .utf8)
+        }
+    }
 }
 
 private func event(_ type: String, text: String = "") throws -> RealtimeEvent {
@@ -281,8 +364,9 @@ private final class FixtureCapture: AudioCapturing {
 
 @MainActor private final class FixtureProvider: NotebookProvider {
     var transcriptionGate: Suspension?
+    var formattedResponse = #"{"action_items":[{"description":"Synthetic action"}]}"#
     func format(_ meeting: Meeting) async throws -> FormattedNotes {
-        try FormattedNotes.parse(Data(#"{"action_items":[{"description":"Synthetic action"}]}"#.utf8))
+        try FormattedNotes.parse(Data(formattedResponse.utf8))
     }
     func transcribe(file: URL) async throws -> String { await transcriptionGate?.wait(); return "Synthetic imported transcript" }
     func translate(_ text: String, target: String) async throws -> String { "Synthetic translation" }

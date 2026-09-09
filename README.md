@@ -6,8 +6,7 @@ Built with SwiftUI and powered by your Valsea account for live transcription, tr
 <img src="macOS/Artwork/Chirpberry.png" width="112" alt="Chirpberry's mulberry bird icon" />
 
 **First release in verification.**
-The native build and automated checks are passing; microphone permissions, real Valsea results, and native visual acceptance are still pending.
-See [verification status](docs/verification.md) before relying on the app for an important meeting.
+See [verification status](docs/verification.md) for recorded checks and outstanding acceptance gates before relying on the app for an important meeting.
 The app is free software; Valsea processing uses your own paid account and credits.
 
 ## What is built
@@ -16,7 +15,7 @@ The app is free software; Valsea processing uses your own paid account and credi
 - Microphone capture and optional Mac meeting audio through native Apple APIs, without a meeting bot.
 - Valsea's notetaker endpoint for streaming correction, optional translation, and optional speaker detection.
 - Meeting, sales, and support summaries, with editable enhanced notes and action checkboxes.
-- Notebooks, pinning, reversible trash, source-language search, speaker renaming, and vocabulary context.
+- Notebooks, pinning, reversible trash, bilingual search, speaker renaming, and vocabulary context.
 - Optional calendar preparation, local question answering using Apple Intelligence when available, and cited search excerpts.
 - Local text and JSON import, Valsea audio import, Markdown/JSON export, and a read-only MCP helper.
 - Native menus, keyboard shortcuts, menu-bar controls, Keychain credentials, and an original icon.
@@ -43,10 +42,12 @@ Choose a translation target in Meeting details, then choose Record meeting.
 Inform participants before recording and grant the macOS permissions you choose to use.
 Pause and Stop end audio capture; Resume creates fresh provider streams.
 Enhance notes creates a separate summary without replacing your own writing.
+Enhancing again replaces the enhanced text, including edits made to that text; export a copy first to retain it.
+If saving fails, keep Chirpberry open and export the affected meeting from its actions menu; quitting is blocked until saving succeeds.
 
 The build is ad-hoc signed and is **not notarized by Apple**.
 Review [Apple's installation guidance](https://support.apple.com/en-us/102445) if macOS blocks it.
-DMG and Homebrew publication follow the [release gates](docs/releasing.md); an install command is not advertised as available before its asset exists.
+DMG and Homebrew availability depend on the [release gates](docs/verification.md#still-required); publication follows the [release procedure](docs/releasing.md).
 
 ## Privacy and processing
 
@@ -78,18 +79,16 @@ Copy the MCP configuration in Settings or configure the installed helper manuall
 ```
 
 The helper exposes only `search_meetings` and `get_meeting`, excludes trashed meetings, and uses stdio without opening a network listener.
-It runs only when the AI client launches it.
+Chirpberry does not launch the helper automatically.
 
 ## Development
 
 ```sh
 npm ci --prefix site
 scripts/verify.sh
-cd site
-npx playwright install chromium
-npm run test:e2e
 ```
 
+Run the separate browser suite using the [website guide](site/README.md), including its browser setup and isolated-port options.
 The native project is generated from `macOS/project.yml`; do not commit the generated Xcode project or build output.
 Core tests use protocol fixtures and do not require an API key or microphone access.
 They do not replace real provider and native acceptance tests.

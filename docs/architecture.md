@@ -63,8 +63,5 @@ No background listener, public share service, team synchronization, or outbound 
 
 ## Verification
 
-Core tests cover source/translation semantics, provisional/final state, deduplication, session boundaries, storage recovery, exports, parsing, and retrieval.
-Provider-backed verification and actual capture tests are separate release gates from unit tests.
-The website currently uses a labelled HTML illustration of the notebook.
-A verified native screenshot is a separate visual acceptance task.
-Release packaging must include the exact source revision, native app, MCP executable, source archive, manifest, and checksums.
+See [verification status](verification.md) for test coverage, recorded evidence, and outstanding acceptance gates.
+Website preview requirements belong to the [design contract](../DESIGN.md); packaging requirements belong to the [release procedure](releasing.md#package).

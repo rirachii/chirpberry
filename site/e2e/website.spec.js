@@ -1,5 +1,6 @@
 import {test, expect} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import path from 'node:path';
 
 const command = 'brew install --cask rirachii/tap/chirpberry';
 
@@ -17,6 +18,9 @@ test('accessible notebook and responsive language examples', async ({page}) => {
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({width, height: 900});
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    if (process.env.CHIRPBERRY_TEST_EVIDENCE_DIR) {
+      await page.screenshot({path: path.join(process.env.CHIRPBERRY_TEST_EVIDENCE_DIR, `website-${width}.png`), fullPage: true});
+    }
   }
 });
 
@@ -40,10 +44,10 @@ test('blocked clipboard gives a manual fallback', async ({page}) => {
   await expect(page.locator('.brew-copy code').first()).toHaveText(command);
 });
 
-test('download and install help remain usable without JavaScript', async ({browser}) => {
+test('download and install help remain usable without JavaScript', async ({browser, baseURL}) => {
   const context = await browser.newContext({javaScriptEnabled: false});
   const page = await context.newPage();
-  await page.goto('http://127.0.0.1:5182');
+  await page.goto(baseURL);
   await expect(page.getByRole('link', {name: 'Get Chirpberry for Mac'})).toHaveAttribute('href', /releases\/download\/v0\.1\.0\/Chirpberry-0\.1\.0-macOS-arm64\.dmg$/);
   await page.getByText('How do I install it?', {exact: true}).click();
   await expect(page.locator('#install')).toHaveAttribute('open', '');

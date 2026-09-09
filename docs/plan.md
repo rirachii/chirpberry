@@ -14,8 +14,8 @@ Speech and requested summaries are sent directly to the user's Valsea account.
 4. Build the native notebook, live bilingual transcript, note enhancement, templates, speaker renaming, search, folders, calendar entry points, audio/text import, and export.
 5. Add on-device question answering when Apple Intelligence is available, with cited local search available independently.
 6. Exercise provider integration with consented synthetic speech and the user's Valsea credentials, along with failure, restart, data preservation, and permission flows.
-7. Create the original icon, website, documentation, CI, and no-mistakes review.
-8. Package the verified build, publish GitHub source and DMG, validate a clean Homebrew installation, deploy the website, and test its real download.
+7. Create the original icon, website, documentation, CI, and no-mistakes review; publish the authorized public source/PR and preview site.
+8. After native/provider acceptance, package the verified build, publish the DMG and canonical cask, validate a clean Homebrew installation, deploy the production website, and test its real download.
 
 ## Reference scope
 
@@ -27,7 +27,5 @@ No claim of complete competitor parity or superior accuracy should appear in mar
 
 ## Release gates
 
-Real Valsea success and error tests are distinct from recorded protocol fixtures.
-A missing credential does not count as a passed integration test.
-Code signing, Apple notarization, tested OS versions, GitHub publication, Homebrew install, and website deployment must each be reported independently.
-The primary production hosting route is manually dispatched GitHub Pages, gated on the public release and canonical cask; Vercel remains optional.
+Track acceptance evidence and publication authorization in [verification status](verification.md).
+Follow the [release procedure](releasing.md) for packaging, distribution, and production hosting.

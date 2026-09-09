@@ -1,0 +1,14 @@
+macOS/.build/
+macOS/*.xcodeproj/
+.build/
+dist/
+dist-native/
+node_modules/
+site/dist/
+.vercel/
+.env
+.env.*
+!.env.example
+.DS_Store
+.local-notes/
+*.log

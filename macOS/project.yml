@@ -1,0 +1,45 @@
+name: Chirpberry
+options:
+  bundleIdPrefix: com.rirachii
+  deploymentTarget:
+    macOS: "26.0"
+packages:
+  ChirpberryCore:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    ENABLE_HARDENED_RUNTIME: NO
+    SWIFT_STRICT_CONCURRENCY: targeted
+targets:
+  Chirpberry:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+      - path: Resources
+        excludes: [bin]
+        buildPhase: resources
+      - path: Resources/bin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: ChirpberryCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rirachii.chirpberry
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        COMBINE_HIDPI_IMAGES: YES
+schemes:
+  Chirpberry:
+    build:
+      targets:
+        Chirpberry: all
+    run:
+      config: Debug
+    archive:
+      config: Release

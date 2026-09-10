@@ -1,6 +1,7 @@
 # Chirpberry website
 
 The static marketing site lives in this directory and has no backend, sign-in, analytics, or speech upload controls.
+Its copy and download targets describe the preserved SwiftUI Mac app; [Electron candidate support](../desktop/README.md) is documented separately. The page remains a release draft until the [publication gates](../docs/releasing.md) are complete.
 Run npm ci, npm run dev, and npm run build with Node 22.12 or later.
 The development port is 5182 and the preview port is 4182.
 The page uses Manrope under the SIL Open Font License and Lucide under the ISC license, with notices generated during the build.

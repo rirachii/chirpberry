@@ -58,7 +58,7 @@ Pause stops capture and ends provider streams; resume creates new streams.
 Stop drains queued audio and waits for final events for a bounded period.
 Errors retain saved notes and final segments; unsaved audio cannot be recovered because the app does not record it to disk.
 
-Companion renderer termination cancels Electron capture through the shared recording owner with clipboard delivery suppressed. Native audio imports append to the current document after transcription and attach translation by the imported segment's UUID, preserving live finals and personal notes across both requests. Native document decode and save reject negative or non-finite timing, timing at or above the platform integer limit, and speaker indices outside `0..<Int.max`; display formatting also tolerates invalid in-memory values. Scratchpad retains consumed formatting identity in the parent view so Notes/Summary switches cannot replay an earlier edit. Formatting executes outside SwiftUI view updates, and native undo/redo synchronizes the notes binding for persistence.
+Companion renderer termination cancels Electron capture through the shared recording owner with clipboard delivery suppressed. Native audio imports create a new document before transcription, append to that document by its captured ID, and attach translation by the imported segment's UUID, preserving concurrent live finals and personal notes across both requests. Native document decode and save reject negative or non-finite timing, timing at or above the platform integer limit, and speaker indices outside `0..<Int.max`; display formatting also tolerates invalid in-memory values. Scratchpad retains consumed formatting identity in the parent view so Notes/Summary switches cannot replay an earlier edit. Formatting executes outside SwiftUI view updates, and native undo/redo synchronizes the notes binding for persistence.
 
 ## Meeting knowledge
 
@@ -68,7 +68,7 @@ Related prior notes provide a local preparation view.
 Search indexes titles, personal notes, enhanced notes, speaker names, source text, and translations in memory.
 Native on-device question answering uses Apple Foundation Models when available, with a maximum of four retrieved source excerpts and validated source indices. Electron does not yet implement this feature.
 Without an available model, the UI identifies its output as matching source excerpts.
-The native chirpberry-mcp executable and Electron's portable mcp.cjs expose read-only search_meetings and get_meeting tools over stdio only when a user launches them through an AI client. The portable entrypoint requires Node 22+ and an explicit notebook directory.
+The native chirpberry-mcp executable and Electron's portable mcp.cjs expose read-only search_meetings and get_meeting tools over stdio only when a user launches them through an AI client. See [Electron MCP usage](../desktop/README.md#implemented-behavior) for runtime and notebook-directory selection.
 No background listener, public share service, team synchronization, or outbound messaging is present.
 
 ## Verification

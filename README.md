@@ -49,7 +49,7 @@ Pause and Stop end audio capture; Resume creates fresh provider streams.
 Enhance notes creates a separate summary without replacing your own writing.
 
 Use the floating bar for quick capture: tap Fn / Globe to start dictation, then again to finish and copy the final text to the clipboard. A Scratchpad copy is saved. Global Fn needs Accessibility access from Settings > Quick capture; Control-Option-D remains a fallback. Control-Option-M opens meeting setup and Control-Option-S opens Scratchpad. Settings also offers Control–Option–D or optional Tab as the primary dictation key. Live dictation requires a Valsea key and the recording disclosure and microphone permission.
-Dictation uses only the microphone and always saves final words locally. With Accessibility permission, supported active-app text fields can receive the result; otherwise use Scratchpad's Copy button.
+For optional external-editor insertion in the alternate shortcut modes, see the native [dictation destination rules](docs/desktop-companion.md#dictation).
 The first dictation requires an in-app disclosure. The bar rests as a small handle and expands on hover; choose the top, bottom, left, or right edge in Settings > Quick capture > Dock position. It stays centered on the selected edge and cannot be dragged.
 The Quick capture menu controls bar visibility and keyboard focus. Capture keeps the controls expanded.
 See [desktop companion](docs/desktop-companion.md) for details and acceptance limits.

@@ -1,6 +1,7 @@
-# Desktop companion
+# Native SwiftUI desktop companion
 
-The floating bar and Scratchpad provide quick entry points into the same notebook and capture lifecycle as the main window.
+This guide describes `macOS/App/`. For the Electron companion and its platform limits, see [Electron desktop](../desktop/README.md#implemented-behavior).
+The native floating bar and Scratchpad provide quick entry points into the same notebook and capture lifecycle as the main window.
 They are local implementation features; live provider and external-editor acceptance remain separate release gates.
 
 ## Actions
@@ -55,7 +56,7 @@ Summarize uses the existing Valsea meeting, sales, or support format and writes 
 
 ## Validation
 
-Run `scripts/verify.sh` for Swift package tests, MCP checks, site checks, the native Release build, and the standalone native model tests.
+Use the repository's [development commands](../README.md#development) for the combined verification pass; Electron UI acceptance is listed in the [Electron guide](../desktop/README.md#run-and-package).
 The `ChirpberryModelTests` Xcode scheme compiles the actual notebook/capture source with isolated document directories, without starting microphone capture or calling Valsea.
 Core coverage includes legacy document decoding, scratchpad round trips, multilingual formatting, stale ranges, and preservation of original typed text.
 Dock geometry tests cover all four edges, inward expansion around the pointer, recording dimensions, and displays with negative or offset coordinates.

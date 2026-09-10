@@ -25,7 +25,7 @@ Smaller bundles alone do not establish lower total memory use, better battery li
 
 Use Electron with a React/TypeScript interface and native integrations for specialized audio and OS operations. Prioritize macOS and Windows; Linux is a framework target whose capture and release support must be qualified separately. The observed competitor builds support its suitability for related workflows, not a claim that Electron is the fastest framework.
 
-Keep capture, resampling, and streaming independent of UI rendering. Reuse suitable existing Swift capture code on macOS where a helper boundary is practical, and implement the required Windows and Linux adapters separately. This is a proposed architecture, not a verified integration.
+See [Desktop direction in the architecture guide](architecture.md#desktop-direction) for the implemented capture adapters and process boundaries, and [verification status](verification.md) for their acceptance evidence.
 
 Before replacing the current SwiftUI application, validate microphone and computer-audio capture, explicit permission and recording lifecycle behavior, pause/stop, and sustained streaming on target systems. Measure startup, total process memory, idle energy use, and sustained recording resource use. [Electron's capture documentation](https://www.electronjs.org/docs/latest/api/desktop-capturer/) identifies platform-specific behavior that still needs testing.
 

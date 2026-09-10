@@ -45,7 +45,7 @@ export function SettingsPanel({ runtime, onChange, onCreated }: { runtime: Runti
       <label>Language hints<input value={form.hints} maxLength={100} onChange={event => edit({ hints: event.target.value })} placeholder="For example: en, zh" pattern="[a-zA-Z ,]*" /></label>
       <label>Names and vocabulary<textarea value={form.vocabulary} rows={2} maxLength={4000} onChange={event => edit({ vocabulary: event.target.value })} /></label>
       <h3>Floating capture bar</h3>
-      <label className="check-label"><input type="checkbox" checked={form.barVisible} onChange={event => edit({ barVisible: event.target.checked })} />Show the floating bar</label>
+      <label className="check-label"><input type="checkbox" checked={form.barVisible} disabled={runtime.capture.state !== 'idle'} onChange={event => edit({ barVisible: event.target.checked })} />Show the floating bar</label>
       <label>Position<select value={form.dock} onChange={event => edit({ dock: event.target.value as AppSettings['dock'] })}>{['bottom', 'top', 'left', 'right'].map(dock => <option key={dock} value={dock}>{dock[0].toUpperCase() + dock.slice(1)}</option>)}</select></label>
       <h3>Dictation shortcut</h3>
       <label className="check-label"><input type="checkbox" checked={form.shortcutsEnabled} disabled={!runtime.capabilities.microphone} onChange={event => edit({ shortcutsEnabled: event.target.checked })} />Enable global capture shortcuts</label>

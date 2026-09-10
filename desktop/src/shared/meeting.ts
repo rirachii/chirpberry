@@ -47,8 +47,14 @@ export function newMeeting(id: string, kind: 'meeting' | 'scratchpad' = 'meeting
     duration: 0, isTrashed: false, isPinned: false, ...(kind === 'scratchpad' ? { entryKind: kind } : {})
   });
 }
+export const documentByteLimit = 32 * 1024 * 1024;
+export function serializeMeeting(meeting: Meeting): string {
+  const contents = JSON.stringify(meeting, null, 2);
+  if (new TextEncoder().encode(contents).byteLength > documentByteLimit) throw new Error('This meeting has reached the 32 MB document limit.');
+  return contents;
+}
 export function decodeMeeting(contents: string): Meeting {
-  if (new TextEncoder().encode(contents).byteLength > 32 * 1024 * 1024) throw new Error('Meeting files must be smaller than 32 MB.');
+  if (new TextEncoder().encode(contents).byteLength > documentByteLimit) throw new Error('Meeting files must be smaller than 32 MB.');
   try { return meetingSchema.parse(JSON.parse(contents)); }
   catch { throw new Error('This file does not match the supported Chirpberry meeting format. The original file has been preserved.'); }
 }

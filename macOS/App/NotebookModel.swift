@@ -39,14 +39,24 @@ enum CapturePurpose { case meeting, dictation }
     private let calendar = EKEventStore()
     private var saves: [UUID: Task<Void, Never>] = [:]
     private var connections: [String: RealtimeConnection] = [:]
-    private var capture: AudioCapture?
+    private var capture: (any RecordingAudioCapture)?
     private var reducer = TranscriptReducer()
     private var startedAt: Date?
     private var offset: Double = 0
     private var ticker: Task<Void, Never>?
     private var sessionToken = UUID()
 
-    init(directory: URL? = nil) {
+    private var finalizationTask: Task<Void, Never>?
+    private let readKey: () throws -> String
+    private let makeConnection: @MainActor (String, String, RealtimeConfiguration) -> RealtimeConnection
+    private let makeCapture: () -> any RecordingAudioCapture
+    private let formatMeeting: (Meeting) async throws -> FormattedNotes
+
+    init(directory: URL? = nil, readKey: @escaping () throws -> String = { try ValseaKeychain.read() },
+         makeConnection: @escaping @MainActor (String, String, RealtimeConfiguration) -> RealtimeConnection = { RealtimeConnection(channel: $0, key: $1, configuration: $2) },
+         makeCapture: @escaping () -> any RecordingAudioCapture = { AudioCapture() },
+         formatMeeting: @escaping (Meeting) async throws -> FormattedNotes = { try await ValseaREST(key: ValseaKeychain.read()).format($0) }) {
+        self.readKey = readKey; self.makeConnection = makeConnection; self.makeCapture = makeCapture; self.formatMeeting = formatMeeting
         // UI acceptance runs use an isolated document directory without touching the user's notes.
         let testPath = ProcessInfo.processInfo.environment["CHIRPBERRY_DOCUMENTS_DIR"]
         store = MeetingStore(directory: directory ?? testPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? MeetingStore.defaultDirectory)
@@ -102,7 +112,12 @@ enum CapturePurpose { case meeting, dictation }
             self.persist(meeting); self.saves[id] = nil
         }
     }
-    func flush() { for task in saves.values { task.cancel() }; saves.removeAll(); for meeting in meetings { persist(meeting) } }
+    @discardableResult func flush() -> Bool {
+        for task in saves.values { task.cancel() }; saves.removeAll()
+        var saved = true
+        for meeting in meetings { if !persist(meeting) { saved = false } }
+        return saved
+    }
     @discardableResult private func persist(_ meeting: Meeting) -> Bool {
         do { try store.save(meeting); saveFailures.remove(meeting.id); return true } catch {
             saveFailures.insert(meeting.id)
@@ -136,7 +151,7 @@ enum CapturePurpose { case meeting, dictation }
         recordingState = .connecting; recordingID = id; selectedID = id; message = nil
         offset = meeting.duration; elapsed = offset
         do {
-            let key = try ValseaKeychain.read()
+            let key = try readKey()
             guard !key.isEmpty else { throw CoreError.invalid("Add your Valsea API key in Settings before starting.") }
             let isDictation = capturePurpose == .dictation
             let system = !isDictation && UserDefaults.standard.bool(forKey: "includeSystemAudio")
@@ -149,7 +164,7 @@ enum CapturePurpose { case meeting, dictation }
             let channels = system ? ["Microphone", "Mac audio"] : ["Microphone"]
             reducer = TranscriptReducer(); partials = [:]
             for channel in channels {
-                let connection = RealtimeConnection(channel: channel, key: key, configuration: config)
+                let connection = makeConnection(channel, key, config)
                 connection.onEvent = { [weak self] event in
                     guard let self, self.sessionToken == token else { return }
                     if let segment = self.reducer.apply(event, channel: channel, offset: self.offset, speakerScope: token.uuidString) {
@@ -163,13 +178,14 @@ enum CapturePurpose { case meeting, dictation }
                 }
                 connection.onFailure = { [weak self] reason in
                     guard let self, self.sessionToken == token else { return }
+                    self.suppressDictationDelivery = true; self.message = reason
                     Task { await self.abortRecording(reason) }
                 }
                 connections[channel] = connection
             }
             for channel in channels { try await connections[channel]?.connect() }
             guard sessionToken == token, recordingState == .connecting else { return }
-            let audio = AudioCapture()
+            let audio = makeCapture()
             audio.onAudio = { [weak self] data, channel, level in
                 Task { @MainActor in
                     guard let self, self.sessionToken == token, self.recordingState == .recording else { return }
@@ -195,34 +211,61 @@ enum CapturePurpose { case meeting, dictation }
     func resume() async { guard recordingState == .paused else { return }; await startRecording() }
     func stopRecording(pause: Bool = false, deliverDictation: Bool = true) async {
         if !deliverDictation { suppressDictationDelivery = true }
+        if let finalizationTask {
+            await finalizationTask.value
+            if !pause, recordingState == .paused { await stopRecording(deliverDictation: deliverDictation) }
+            return
+        }
         guard recordingState != .idle, recordingState != .finishing else { return }
         if recordingState == .connecting { await abortRecording("Connection cancelled."); return }
-        let id = recordingID
         recordingState = .finishing
+        let task = Task {
+            await finalizeRecording(pause: pause)
+            finalizationTask = nil
+        }
+        finalizationTask = task
+        await task.value
+    }
+    private func finalizeRecording(pause: Bool) async {
+        let id = recordingID
         await capture?.stop(); capture = nil
         ticker?.cancel(); ticker = nil
         if let startedAt { elapsed = offset + Date().timeIntervalSince(startedAt) }
         startedAt = nil
         let finishingConnections = Array(connections.values)
-        await withTaskGroup(of: Void.self) { group in
+        let succeeded = await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
             for connection in finishingConnections { group.addTask { await connection.finish() } }
+            var succeeded = true
+            for await result in group { if !result { succeeded = false } }
+            return succeeded
         }
+        if !succeeded { suppressDictationDelivery = true }
         connections.removeAll(); levels = [:]
         if let id { update(id, { $0.duration = elapsed }, immediate: true) }
-        if partials.values.contains(where: { !$0.isEmpty }) { message = "Some provisional text did not receive a final result before the connection closed. Saved final segments are retained." }
-        partials = [:]; recordingState = pause ? .paused : .idle
-        if !pause {
+        if succeeded, partials.values.contains(where: { !$0.isEmpty }) { message = "Some provisional text did not receive a final result before the connection closed. Saved final segments are retained." }
+        partials = [:]; recordingState = pause && succeeded ? .paused : .idle
+        if recordingState == .idle {
             recordingID = nil
             if capturePurpose == .dictation, let id {
-                onDictationFinished?(id, dictationText, deliverDictation && !suppressDictationDelivery && !saveFailures.contains(id))
+                onDictationFinished?(id, dictationText, !suppressDictationDelivery && !saveFailures.contains(id))
             }
         }
     }
     func abortRecording(_ reason: String) async {
         guard recordingState != .idle else { return }
         suppressDictationDelivery = true
-        if recordingState == .finishing { message = reason; return }
+        message = reason
+        if let finalizationTask { await finalizationTask.value; return }
+        guard recordingState != .finishing else { return }
         recordingState = .finishing
+        let task = Task {
+            await finishAborting(reason)
+            finalizationTask = nil
+        }
+        finalizationTask = task
+        await task.value
+    }
+    private func finishAborting(_ reason: String) async {
         sessionToken = UUID(); ticker?.cancel(); ticker = nil
         for connection in connections.values { connection.close() }; connections.removeAll()
         await capture?.stop(); capture = nil
@@ -237,8 +280,12 @@ enum CapturePurpose { case meeting, dictation }
         busyID = id; message = nil
         defer { busyID = nil }
         do {
-            let api = ValseaREST(key: try ValseaKeychain.read())
-            let result = try await api.format(meeting)
+            let result = try await formatMeeting(meeting)
+            guard let current = meetings.first(where: { $0.id == id }), !current.isTrashed,
+                  current.enhancedNotes == meeting.enhancedNotes, current.actions == meeting.actions else {
+                message = "The summary changed while Valsea was working. Your edits were preserved; try again when you finish editing."
+                return
+            }
             update(id, { document in
                 document.enhancedNotes = result.markdown
                 // Preserve completed tasks when regenerating an unchanged action.
@@ -266,7 +313,7 @@ enum CapturePurpose { case meeting, dictation }
                 update(id, { $0.notes = text }, immediate: true)
             } else {
                 guard busyID == nil else { throw CoreError.invalid("Wait for the current import or summary to finish.") }
-                let key = try ValseaKeychain.read()
+                let key = try readKey()
                 guard !key.isEmpty else { throw CoreError.invalid("Add your Valsea key in Settings to transcribe audio files.") }
                 let id = createMeeting(title: url.deletingPathExtension().lastPathComponent); busyID = id
                 defer { busyID = nil }

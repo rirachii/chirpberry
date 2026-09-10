@@ -1,26 +1,17 @@
 import Foundation
 import ChirpberryCore
 
-@MainActor final class RealtimeConnection {
-    let channel: String
-    var onEvent: ((RealtimeEvent) -> Void)?
-    var onFailure: ((String) -> Void)?
-    private let socket: URLSessionWebSocketTask
-    private let session: URLSession
-    private let configuration: RealtimeConfiguration
-    private var receiver: Task<Void, Never>?
-    private var sender: Task<Void, Never>?
-    private var timeout: Task<Void, Never>?
-    private var pending: [Data] = []
-    private var pendingBytes = 0
-    private var readyContinuation: CheckedContinuation<Void, Error>?
-    private(set) var ready = false
-    private var closed = false
-    private var finishing = false
-    private var sentConfiguration = false
+@MainActor protocol RealtimeTransport: AnyObject {
+    func resume()
+    func send(_ message: URLSessionWebSocketTask.Message) async throws
+    func receive() async throws -> URLSessionWebSocketTask.Message
+    func close()
+}
 
-    init(channel: String, key: String, configuration: RealtimeConfiguration) {
-        self.channel = channel; self.configuration = configuration
+@MainActor private final class ValseaTransport: RealtimeTransport {
+    private let session: URLSession
+    private let socket: URLSessionWebSocketTask
+    init(key: String) {
         var request = URLRequest(url: URL(string: "wss://api.valsea.ai/v1/realtime/notetaker")!)
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 25
@@ -28,6 +19,39 @@ import ChirpberryCore
         config.urlCache = nil; config.httpCookieStorage = nil
         session = URLSession(configuration: config)
         socket = session.webSocketTask(with: request)
+    }
+    func resume() { socket.resume() }
+    func send(_ message: URLSessionWebSocketTask.Message) async throws { try await socket.send(message) }
+    func receive() async throws -> URLSessionWebSocketTask.Message { try await socket.receive() }
+    func close() { socket.cancel(with: .normalClosure, reason: nil); session.invalidateAndCancel() }
+}
+
+@MainActor final class RealtimeConnection {
+    let channel: String
+    var onEvent: ((RealtimeEvent) -> Void)?
+    var onFailure: ((String) -> Void)?
+    private let socket: any RealtimeTransport
+    private let configuration: RealtimeConfiguration
+    private let finalizationTimeout: Duration
+    private var receiver: Task<Void, Never>?
+    private var sender: Task<Void, Never>?
+    private var timeout: Task<Void, Never>?
+    private var finalizationTask: Task<Bool, Never>?
+    private var pending: [Data] = []
+    private var pendingBytes = 0
+    private var readyContinuation: CheckedContinuation<Void, Error>?
+    private(set) var ready = false
+    private var closed = false
+    private var finishing = false
+    private var stopRequested = false
+    private var finalized = false
+    private var sentConfiguration = false
+
+    convenience init(channel: String, key: String, configuration: RealtimeConfiguration) {
+        self.init(channel: channel, configuration: configuration, transport: ValseaTransport(key: key))
+    }
+    init(channel: String, configuration: RealtimeConfiguration, transport: any RealtimeTransport, finalizationTimeout: Duration = .seconds(8)) {
+        self.channel = channel; self.configuration = configuration; self.socket = transport; self.finalizationTimeout = finalizationTimeout
     }
 
     func connect() async throws {
@@ -64,35 +88,42 @@ import ChirpberryCore
             }
         }
     }
-    func finish() async {
-        guard !closed else { return }
+    func finish() async -> Bool {
+        if let finalizationTask { return await finalizationTask.value }
+        guard !closed else { return finalized }
         finishing = true
-        let deadline = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(8))
+        let task = Task { await finalize() }
+        finalizationTask = task
+        return await task.value
+    }
+    private func finalize() async -> Bool {
+        let deadline = Task { [weak self, finalizationTimeout] in
+            try? await Task.sleep(for: finalizationTimeout)
             guard !Task.isCancelled else { return }
-            self?.close()
+            self?.fail("Valsea did not finish the transcript before the deadline. Saved final segments are retained; dictation was not copied.")
         }
         defer { deadline.cancel() }
         await sender?.value
+        guard !closed else { return finalized }
         do {
             try await send(["type": "audio.commit"])
-            // Continue receiving final corrections while the provider drains the session.
+            guard !closed else { return finalized }
+            stopRequested = true
             try await send(["type": "session.stop"])
-            for _ in 0..<80 {
-                if closed || Task.isCancelled { break }
-                try await Task.sleep(for: .milliseconds(100))
-            }
-        } catch { /* The receive path handles terminal errors; finals already saved remain intact. */ }
-        close()
+            while !closed { try await Task.sleep(for: .milliseconds(20)) }
+        } catch {
+            fail("Valsea could not finalize the transcript. Saved final segments are retained; dictation was not copied.")
+            return false
+        }
+        return finalized
     }
     func close() {
         guard !closed else { return }
         closed = true; ready = false
         timeout?.cancel(); sender?.cancel(); receiver?.cancel()
         readyContinuation?.resume(throwing: CoreError.invalid("Connection closed before Valsea was ready.")); readyContinuation = nil
-        pending.removeAll()
-        pendingBytes = 0
-        socket.cancel(with: .normalClosure, reason: nil); session.invalidateAndCancel()
+        pending.removeAll(); pendingBytes = 0
+        socket.close()
     }
     private func send(_ body: [String: Any]) async throws {
         let data = try JSONSerialization.data(withJSONObject: body)
@@ -102,6 +133,7 @@ import ChirpberryCore
         do {
             while !Task.isCancelled, !closed {
                 let message = try await socket.receive()
+                guard !closed else { return }
                 let data: Data
                 switch message { case .data(let value): data = value; case .string(let value): data = Data(value.utf8); @unknown default: continue }
                 let event = try RealtimeEvent.decode(data)
@@ -113,7 +145,9 @@ import ChirpberryCore
                     }
                 case "session.ready":
                     ready = true; timeout?.cancel(); readyContinuation?.resume(); readyContinuation = nil
-                case "session.stopped", "session.ended": close()
+                case "session.stopped", "session.ended":
+                    if finishing && stopRequested { finalized = true; close() }
+                    else { fail("Valsea ended the session unexpectedly. Capture stopped; saved final segments are retained.") }
                 case "error":
                     let code = event.code ?? "UNKNOWN"
                     fail("Valsea reported \(code). Check your key, credits, language settings, and connection before resuming.")
@@ -121,8 +155,7 @@ import ChirpberryCore
                 }
             }
         } catch {
-            if finishing { close() }
-            else if !closed { fail("Unable to maintain the Valsea connection. Check the API key, credits, and network. Saved notes are preserved.") }
+            if !closed { fail("Unable to maintain the Valsea connection. Check the API key, credits, and network. Saved notes are preserved.") }
         }
     }
     private func fail(_ message: String) {

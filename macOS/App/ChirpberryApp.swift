@@ -71,21 +71,3 @@ import ChirpberryCore
     }
     private func reveal() { openWindow(id: "notebook"); NSApplication.shared.activate(ignoringOtherApps: true) }
 }
-
-@MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
-    weak var model: NotebookModel?
-    weak var desktop: DesktopCompanion?
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let model else { return .terminateNow }
-        if model.active {
-            let alert = NSAlert(); alert.messageText = "Stop recording and quit?"
-            alert.informativeText = "Chirpberry will finish the transcript and save your notes before closing."
-            alert.addButton(withTitle: "Stop and quit"); alert.addButton(withTitle: "Keep open")
-            guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
-            desktop?.shutdown()
-            Task { await model.stopRecording(deliverDictation: false); model.flush(); sender.reply(toApplicationShouldTerminate: true) }
-            return .terminateLater
-        }
-        desktop?.shutdown(); model.flush(); return .terminateNow
-    }
-}

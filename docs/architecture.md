@@ -23,7 +23,7 @@ See [desktop companion](desktop-companion.md) for window lifecycle, external ins
 ## Data and network boundaries
 
 Meeting documents are separate versioned JSON files under Application Support/Chirpberry/Meetings.
-Writes use atomic replacement with owner-only file permissions.
+Writes use atomic replacement with owner-only file permissions. Both stores validate the exact serialized output against the 32 MiB reload limit before replacing a document. Native quit waits for shared capture finalization and cancels termination if a document cannot be saved, retaining in-memory edits for export.
 Unreadable files remain untouched and are reported separately from readable meetings.
 Trash is a reversible document flag; the app does not permanently delete meeting files.
 Personal notes and generated notes occupy different fields.

@@ -39,6 +39,7 @@ targets:
     platform: macOS
     sources:
       - path: Tests/ChirpberryAppTests
+      - path: App/AppDelegate.swift
       - path: App/NotebookModel.swift
       - path: App/RealtimeConnection.swift
       - path: App/AudioCapture.swift

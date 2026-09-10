@@ -17,6 +17,8 @@ npm run package:installers --prefix desktop
 
 `start` builds the Mac helper where applicable and opens the actual Electron app. `package` creates an unpacked host app. `package:installers` creates Mac arm64 DMG/ZIP, Windows NSIS, or Linux AppImage under `desktop/release/`. All commands disable publication. Mac candidates are ad-hoc signed and unnotarized; Windows installers are unsigned. A candidate installer is not a passed clean-install test.
 
+Install the Mac candidate into `/Applications/Chirpberry Electron Candidate/Chirpberry.app`: create that distinct folder and copy the app into it. The product name stays Chirpberry. Never replace the native `/Applications/Chirpberry.app` before acceptance; cancel any Finder replacement prompt and choose a new candidate folder. The DMG omits a direct Applications shortcut and includes the coexistence procedure in `INSTALL.txt`.
+
 ## Implemented behavior
 
 - Meeting notes and Scratchpads, independent original and summary notes, search, notebooks, pinning, reversible Trash, speaker naming, and native text editing/Undo.
@@ -53,4 +55,4 @@ Unit/integration checks cover real file persistence, failures, cancellation, pha
 
 For packaged notebook acceptance, set `CHIRPBERRY_EXECUTABLE` to the executable and run `npx playwright test` from `desktop/`. On Mac: `release/mac-arm64/Chirpberry.app/Contents/MacOS/Chirpberry`. The fixture test intentionally skips against production packages.
 
-Use `npm run release:prepare --prefix desktop` only from a clean reviewed source commit. It refuses dirty source and existing release output, builds installers, verifies Mac DMG payload/signatures, and creates exact-source archives, manifests, and SHA-256 checksums. It does not publish or certify live acceptance. See [verification](../docs/verification.md), [migration acceptance](../docs/electron-migration.md), and [release procedure](../docs/releasing.md).
+Use `npm run release:prepare --prefix desktop` only from a clean reviewed source commit. It refuses dirty or changed source and existing versioned release output, builds installers in fresh invocation-specific staging, verifies Mac DMG payload/signatures, and creates exact-source archives, manifests, and SHA-256 checksums. It does not publish or certify live acceptance. See [verification](../docs/verification.md), [migration acceptance](../docs/electron-migration.md), and [release procedure](../docs/releasing.md).

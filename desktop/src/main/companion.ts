@@ -11,7 +11,10 @@ export class Companion {
   private settings?: AppSettings;
   async configure(settings: AppSettings) {
     this.settings = settings;
-    if (!settings.barVisible) { this.destroy(); return; }
+    if (!settings.barVisible) {
+      if (!this.active) this.destroy();
+      if (!this.window) return;
+    }
     if (!this.window) {
       const window = new BrowserWindow({ width: 52, height: 10, show: false, frame: false, transparent: true, resizable: false, minimizable: false,
         maximizable: false, fullscreenable: false, skipTaskbar: true, alwaysOnTop: true, title: 'Chirpberry capture bar',
@@ -29,7 +32,11 @@ export class Companion {
   owns(event: Electron.IpcMainInvokeEvent) { return !!this.window && event.sender === this.window.webContents && event.senderFrame === event.sender.mainFrame && event.senderFrame?.url === 'chirpberry://app/companion.html'; }
   hover() { clearTimeout(this.leaveTimer); this.hovered = true; this.position(); }
   leave() { clearTimeout(this.leaveTimer); this.leaveTimer = setTimeout(() => { this.hovered = false; this.position(); }, 120); }
-  capture(snapshot: CaptureSnapshot) { this.active = snapshot.state !== 'idle'; this.position(); }
+  capture(snapshot: CaptureSnapshot) {
+    this.active = snapshot.state !== 'idle';
+    if (!this.active && this.settings?.barVisible === false) { this.destroy(); return; }
+    this.position();
+  }
   private position() {
     const window = this.window; if (!window || window.isDestroyed() || !this.settings) return;
     const expanded = this.active || this.hovered;

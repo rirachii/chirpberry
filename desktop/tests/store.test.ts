@@ -117,3 +117,40 @@ test('export and search preserve bilingual segment boundaries and speaker scope'
   meeting.segments[0].speakerScope = 'session-two';
   assert.doesNotMatch(transcriptText(meeting), /Maya/);
 });
+
+test('the exact serialized byte limit survives restart and rejects oversized edits before replacement', async t => {
+  const location = await directory(t), store = new MeetingStore(location);
+  await store.load();
+  const meeting = await store.create('meeting');
+  const limit = 32 * 1024 * 1024;
+  const overhead = Buffer.byteLength(JSON.stringify(meeting, null, 2));
+  const notes = '\0'.repeat(Math.floor((limit - overhead) / 6));
+  const enhancedNotes = 'a'.repeat((limit - overhead) % 6);
+  store.update(meeting.id, { notes, enhancedNotes });
+  await store.flush();
+  const filename = path.join(location, `${meeting.id}.json`);
+  const saved = await readFile(filename, 'utf8');
+  assert.equal(Buffer.byteLength(saved), limit);
+  assert.ok(Buffer.byteLength(JSON.stringify({ ...store.get(meeting.id), enhancedNotes: enhancedNotes + '🌱' })) < limit);
+  assert.throws(() => store.update(meeting.id, { enhancedNotes: enhancedNotes + '🌱' }), /32 MB/);
+  assert.equal(store.get(meeting.id).enhancedNotes, enhancedNotes);
+  assert.equal(await readFile(filename, 'utf8'), saved);
+  const restarted = new MeetingStore(location);
+  assert.deepEqual((await restarted.load()).unreadable, []);
+  assert.equal(restarted.get(meeting.id).notes, notes);
+});
+
+test('compact JSON imports that expand beyond the reload limit leave the source and store intact', async t => {
+  const location = await directory(t), store = new MeetingStore(location);
+  await store.load();
+  const meeting = newMeeting(randomUUID()), limit = 32 * 1024 * 1024;
+  meeting.notes = '\0'.repeat(Math.floor((limit - Buffer.byteLength(JSON.stringify(meeting, null, 2))) / 6) + 1);
+  const contents = JSON.stringify(meeting);
+  assert.ok(Buffer.byteLength(contents) < limit);
+  assert.ok(Buffer.byteLength(JSON.stringify(meeting, null, 2)) > limit);
+  const source = path.join(location, 'source.json'); await writeFile(source, contents);
+  await assert.rejects(store.importJSON(await readFile(source, 'utf8')), /32 MB/);
+  assert.deepEqual(store.snapshot().meetings, []);
+  assert.deepEqual(await readdir(location), ['source.json']);
+  assert.equal(await readFile(source, 'utf8'), contents);
+});

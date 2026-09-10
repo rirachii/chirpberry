@@ -7,12 +7,14 @@ public struct MeetingStore: Sendable {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Chirpberry/Meetings", isDirectory: true)
     }
+    public static let documentByteLimit = 32 * 1024 * 1024
     public func save(_ meeting: Meeting) throws {
+        let data = try Self.exportJSON(meeting)
+        guard data.count <= Self.documentByteLimit else { throw CoreError.invalid("Meeting file exceeds 32 MB.") }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                               attributes: [.posixPermissions: 0o700])
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601
         let url = directory.appendingPathComponent(meeting.id.uuidString + ".json")
-        try encoder.encode(meeting).write(to: url, options: [.atomic])
+        try data.write(to: url, options: [.atomic])
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
     public func load() throws -> (meetings: [Meeting], unreadable: [String]) {
@@ -30,7 +32,7 @@ public struct MeetingStore: Sendable {
         return (meetings.sorted { $0.updatedAt > $1.updatedAt }, unreadable)
     }
     public static func decode(_ data: Data) throws -> Meeting {
-        guard data.count <= 32 * 1024 * 1024 else { throw CoreError.invalid("Meeting file exceeds 32 MB.") }
+        guard data.count <= documentByteLimit else { throw CoreError.invalid("Meeting file exceeds 32 MB.") }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let value = try decoder.decode(Meeting.self, from: data)
         guard value.schemaVersion == 1 else { throw CoreError.invalid("This meeting uses a newer file format.") }

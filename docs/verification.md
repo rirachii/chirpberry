@@ -7,7 +7,7 @@ This is an engineering checkpoint, not a claim that live provider or native acce
 
 Implemented on 2026-09-10: recording and pause/resume, microphone/system-audio adapters, Valsea streaming/translation/summaries, protected keys, final clipboard dictation, 200-point companion, Mac calendar preparation, audio import, and portable read-only MCP. The product is named Chirpberry and uses its own `Chirpberry Desktop` profile. The native app is preserved.
 
-Current local evidence:
+Pre-review local evidence (before these fixes):
 
 - TypeScript checks and production bundling pass. Seventeen unit/integration checks pass: storage/recovery, Swift interchange, continuous PCM, WebSocket authentication/readiness/draining, failure/cancellation, final-only clipboard delivery, summary parsing/error privacy, and read-only MCP.
 - Development and packaged Mac notebook acceptance pass: edit/restart, import/export with stubbed OS dialog selections, trash, search, keyboard controls, sandbox isolation, and automated accessibility in wide/light and compact/dark layouts.
@@ -16,7 +16,29 @@ Current local evidence:
 
 Release remains gated on real microphone/system-audio permission and capture, a saved Valsea key and successful live transcript/summary/import, physical Fn outside the app, calendar authorization, Windows/Linux runtime and clean-install evidence, and clean-source publication checks. No claim of perfect behavior or live transcription follows from fixture tests. CI now covers Mac, Windows, and Linux notebook/fixture tests and installer builds; results must be recorded after those jobs run.
 
-## Passed locally
+## Supplied pre-review candidate observations (R14)
+
+These observations were supplied by Myko for the candidate before the review fixes. They were not repeated in this fix round and do not establish acceptance of the changed source or final clean-source artifacts. The referenced raw measurement is `desktop/test-results/idle-measurement.json` in the original workspace; this isolated worktree does not contain it.
+
+- The candidate DMG was mounted read-only; strict deep signature verification passed, its `app.asar` hash matched the unpacked app, and `INSTALL.txt` was present. This is candidate packaging evidence, separate from exact clean-commit DMG/source archive/checksum provenance.
+- A packaged empty notebook with the bar collapsed and the real Mac helper idle on Darwin 25.5.0 arm64 launched in 2661 ms. After a 3-second warmup, six samples spaced 5 seconds apart each recorded 6 processes and 604 MiB aggregate RSS. CPU samples were 3%, 0%, 0%, 0.1%, 0%, and 0%.
+- Aggregate RSS double-counts shared pages. This was one warm-cache local idle sample, not an energy measurement or recording-performance result. No key was saved and no audio/provider action occurred.
+- The normally launched candidate's actual native accessibility tree exposed credential, disclosure, and shortcut Settings controls. This does not verify permission grants or physical Fn behavior.
+- Both Electron E2E tests and `scripts/verify.sh` passed locally before these review fixes. Their historical results do not verify the changed source. The full pipeline and live acceptance gates remain separate from focused review regression tests.
+
+## Review regression scope
+
+R1–R12 were confirmed against the implementation. Capture controls now follow the recording owner independently of the selected note, and an existing active companion cannot be hidden until capture is idle. Native quit propagates save failure and shares in-progress stop/abort work; provider finalization failures suppress dictation delivery, and unsolicited terminal events stop capture. Summary responses compare the current summary and actions against the request snapshot. Both stores check the exact serialized bytes before replacement; Electron applies the same check in the editor. Mac installation uses a distinct candidate folder, and release preparation uses Node's npm entrypoint and fresh artifact staging.
+
+Regression coverage lives in `desktop/tests/e2e/review.spec.ts`, `desktop/tests/store.test.ts`, `desktop/tests/release.test.mjs`, `macOS/Tests/ChirpberryAppTests/ReviewRegressionTests.swift`, and `macOS/Tests/ChirpberryCoreTests/MeetingStoreSizeTests.swift`. Transport, capture, and release-command fixtures verify failure handling and provenance selection logic; they are not live Valsea, hardware, Windows runtime, or installer acceptance evidence. R13 was referenced in the supplied instructions without a finding description and could not be evaluated from that reference.
+
+Final focused verification on 2026-09-10: desktop TypeScript checking passed; 13 selected storage/release tests passed; the fixture build and two new Electron UI tests passed; two native serialized-size tests passed; six existing native companion model tests passed; and all six new native review regression tests passed. The initial native regression run exposed two test-harness errors (native dictation spacing and an overfulfilled expectation); after correcting those tests, the regression class passed. `git diff --check` passed.
+
+Commands: `npm run typecheck` and `node --import tsx --test tests/store.test.ts tests/release.test.mjs` from `desktop/`; `node scripts/build.mjs --fixture` and `playwright test tests/e2e/review.spec.ts --workers=1` from `desktop/`; `swift test --package-path macOS --filter MeetingStoreSizeTests`; and `xcodebuild test` using the `ChirpberryModelTests` scheme with `-only-testing:ChirpberryModelTests/ReviewRegressionTests` and `-only-testing:ChirpberryModelTests/CompanionModelTests`. The corrected native rerun selected only `ReviewRegressionTests`.
+
+This fix round did not run the complete repository test/lint suite or `scripts/verify.sh`; those remain the dedicated pipeline gates. It did not build final clean-source installers, publish artifacts, contact Valsea, or claim new live OS/provider acceptance.
+
+## Earlier local evidence
 
 - 26 Swift core tests: transcript source/translation semantics, provisional/final state, duplicate handling, speaker scope, JSON round-trips, corrupt-file recovery, file permissions, exports, summaries, search, HTTP error handling, upload size/header boundaries, Unicode limits, continuous PCM conversion at 44.1/48 kHz, scratchpad compatibility, selected-text formatting, and inward expansion geometry at all four screen edges.
 - Eighteen native model/shortcut/clipboard/hover tests: scratchpad persistence/relaunch and independent selection, disclosure without capture, simultaneous-session exclusion, reversible Trash, suppression of delivery on window closure including finalization, storage failure before connection, held-key repeat suppression, Fn activation once on release, combination rejection, cancellation of queued shortcuts, isolated clipboard final delivery/preservation on empty, failed, and cancelled sessions, and hover opening/closing with re-entry, feedback, keyboard-focus, and popover interactions.

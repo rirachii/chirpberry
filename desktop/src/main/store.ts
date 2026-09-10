@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readdir, readFile, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { decodeMeeting, meetingSchema, newMeeting, patchSchema, timestamp, uuid, type Meeting, type MeetingPatch, type Segment } from '../shared/meeting';
+import { decodeMeeting, documentByteLimit, serializeMeeting, meetingSchema, newMeeting, patchSchema, timestamp, uuid, type Meeting, type MeetingPatch, type Segment } from '../shared/meeting';
 import type { SaveStatus } from '../shared/api';
 
 export async function atomicWrite(destination: string, contents: string) {
@@ -30,7 +30,7 @@ export class MeetingStore {
       try {
         if (!entry.isFile()) throw new Error('Not a regular file');
         const filename = path.join(this.directory, entry.name);
-        if ((await stat(filename)).size > 32 * 1024 * 1024) throw new Error('File too large');
+        if ((await stat(filename)).size > documentByteLimit) throw new Error('File too large');
         const meeting = decodeMeeting(await readFile(filename, 'utf8'));
         if (entry.name !== `${meeting.id}.json`) throw new Error('Meeting ID mismatch');
         this.meetings.set(meeting.id, meeting);
@@ -47,7 +47,7 @@ export class MeetingStore {
     return meeting;
   }
   private async insert(meeting: Meeting) {
-    await this.write(path.join(this.directory, `${meeting.id}.json`), JSON.stringify(meeting, null, 2));
+    await this.write(path.join(this.directory, `${meeting.id}.json`), serializeMeeting(meeting));
     this.meetings.set(meeting.id, meeting);
     return meeting;
   }
@@ -73,7 +73,7 @@ export class MeetingStore {
   private apply(id: string, patch: Partial<Meeting>) {
     const current = this.get(id);
     const updated = meetingSchema.parse({ ...current, ...patch, updatedAt: timestamp() });
-    if (Buffer.byteLength(JSON.stringify(updated)) > 32 * 1024 * 1024) throw new Error('This meeting has reached the 32 MB document limit.');
+    serializeMeeting(updated);
     this.meetings.set(current.id, updated);
     this.dirty.add(current.id);
     this.status({ state: 'saving' });
@@ -92,7 +92,7 @@ export class MeetingStore {
         const id = this.dirty.values().next().value!;
         const meeting = this.get(id);
         this.dirty.delete(id);
-        try { await this.write(path.join(this.directory, `${id}.json`), JSON.stringify(meeting, null, 2)); }
+        try { await this.write(path.join(this.directory, `${id}.json`), serializeMeeting(meeting)); }
         catch (error) { this.dirty.add(id); throw error; }
       }
       this.status({ state: 'saved' });

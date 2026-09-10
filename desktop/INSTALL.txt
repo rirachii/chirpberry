@@ -2,7 +2,7 @@ Chirpberry 0.2.0 — Electron release candidate
 
 macOS 26+, Apple Silicon. This build is ad-hoc signed and has not been notarized by Apple. macOS may prevent it from opening. Do not disable Gatekeeper or remove quarantine protection to install it.
 
-Drag Chirpberry to Applications. Keep your original native Chirpberry app available until live recording, Fn, and your documents have been checked in this replacement. Quit the original app before enabling global shortcuts in the Electron app to avoid conflicts.
+In Applications, create a new folder named Chirpberry Electron Candidate, then copy Chirpberry.app into that folder. The candidate destination is /Applications/Chirpberry Electron Candidate/Chirpberry.app. Do not drop it directly into Applications or replace /Applications/Chirpberry.app. If Finder offers to replace an existing app or folder, cancel and choose a new candidate folder. Keep the original native app and its documents until live recording, Fn, and document acceptance are complete. Quit the original app before enabling global shortcuts in the Electron app to avoid conflicts.
 
 This app uses a separate Chirpberry Desktop notebook folder. Use Import to copy existing notes. Your original files are preserved.
 

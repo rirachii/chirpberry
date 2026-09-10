@@ -2,7 +2,14 @@ import AVFoundation
 import ScreenCaptureKit
 import ChirpberryCore
 
-final class AudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
+protocol RecordingAudioCapture: AnyObject {
+    var onAudio: ((Data, String, Float) -> Void)? { get set }
+    var onFailure: ((String) -> Void)? { get set }
+    @MainActor func start(includeSystemAudio: Bool) async throws
+    @MainActor func stop() async
+}
+
+final class AudioCapture: NSObject, SCStreamOutput, SCStreamDelegate, RecordingAudioCapture {
     var onAudio: ((Data, String, Float) -> Void)?
     var onFailure: ((String) -> Void)?
     private var stream: SCStream?

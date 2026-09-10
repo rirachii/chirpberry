@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client';
 import { BookOpen, Check, ChevronDown, Copy, Download, FileText, Folder, Import, Languages, Mic, Pause, Play, Square, Upload, Sparkles, PanelRightClose, PanelRightOpen, Pin, Plus, Search, Settings, StickyNote, Trash2, Undo2, X } from 'lucide-react';
 import type { Meeting, MeetingPatch } from '../shared/meeting';
-import { meetingSchema, searchableText, speakerKey, speakerName, timeLabel, timestamp } from '../shared/meeting';
+import { meetingSchema, serializeMeeting, searchableText, speakerKey, speakerName, timeLabel, timestamp } from '../shared/meeting';
 import type { RuntimeSnapshot, SaveStatus } from '../shared/api';
 import type { CaptureSnapshot } from '../shared/capture';
 import { SettingsPanel } from './settings';
@@ -75,7 +75,7 @@ function App() {
   function edit(patch: MeetingPatch) {
     if (!current) return;
     const updated = { ...current, ...patch, updatedAt: timestamp() };
-    if (!meetingSchema.safeParse(updated).success || new Blob([JSON.stringify(updated)]).size > 32 * 1024 * 1024) {
+    try { meetingSchema.parse(updated); serializeMeeting(updated); } catch {
       setMessage('This edit exceeds the document limit. Export a copy and continue in a new note.'); return;
     }
     const id = current.id;
@@ -127,6 +127,15 @@ function App() {
     </aside>
     <main className="workspace">
       {message && <div className="notice" role={save.state === 'error' ? 'alert' : 'status'}><span>{message}</span><button className="icon-button" aria-label="Dismiss message" onClick={() => setMessage('')}><X size={17} /></button></div>}
+      {(capturing || current) && <div className={`recording-controls ${capturing ? 'is-recording' : ''}`} aria-label="Recording controls">
+          {capturing ? <><span className="recording-indicator" /><span role="status">{capture.state === 'connecting' ? 'Connecting to Valsea…' : capture.state === 'finishing' ? 'Saving final speech…' : capture.state === 'paused' ? 'Paused' : capture.purpose === 'dictation' ? 'Dictating to clipboard' : 'Recording meeting'} · {timeLabel(capture.elapsed)}</span>
+            {capture.meetingId !== current?.id && <button className="text-button" onClick={() => select(capture.meetingId)}>Go to recording</button>}
+            <div className="capture-actions">{capture.state === 'paused' ? <button className="secondary" onClick={() => void perform(() => api.resumeCapture())}><Play size={14} />Resume</button> : capture.state === 'recording' && <button className="secondary" onClick={() => void perform(() => api.pauseCapture())}><Pause size={14} />Pause</button>}
+              <button className="primary" disabled={capture.state === 'finishing'} onClick={() => void perform(() => api.stopCapture())}><Square size={13} />{capture.state === 'connecting' ? 'Cancel' : 'Stop'}</button></div>
+          </> : current ? <><span className="capture-description">{current.entryKind === 'scratchpad' ? 'Speak a thought. Keep it here.' : 'Ready when the conversation starts.'}</span><div className="capture-actions">
+            <button className="secondary" disabled={busy || current.isTrashed} onClick={() => void cloud(() => api.startCapture(current.id, 'dictation'))}><Mic size={14} />Dictate</button>
+            <button className="primary" disabled={busy || current.isTrashed} onClick={() => void cloud(() => api.startCapture(current.id, 'meeting'))}><Mic size={14} />Record meeting</button></div></> : null}
+        </div>}
       {current ? <>
         <header className="toolbar"><span className="breadcrumb"><Folder size={15} />{current.notebook || 'Inbox'}</span>
           <span className={`save-status ${save.state}`} role="status">{save.state === 'saved' ? <><Check size={13} />Saved on this device</> : save.state === 'saving' ? 'Saving…' : 'Not saved'}</span>
@@ -143,15 +152,6 @@ function App() {
             <button className="icon-button" aria-label={inspector ? 'Hide transcript' : 'Show transcript'} title={inspector ? 'Hide transcript' : 'Show transcript'} onClick={() => setInspector(value => !value)}>{inspector ? <PanelRightClose size={19} /> : <PanelRightOpen size={19} />}</button>
           </div>
         </header>
-        <div className={`recording-controls ${capturing ? 'is-recording' : ''}`} aria-label="Recording controls">
-          {capturing ? <><span className="recording-indicator" /><span role="status">{capture.state === 'connecting' ? 'Connecting to Valsea…' : capture.state === 'finishing' ? 'Saving final speech…' : capture.state === 'paused' ? 'Paused' : capture.purpose === 'dictation' ? 'Dictating to clipboard' : 'Recording meeting'} · {timeLabel(capture.elapsed)}</span>
-            {capture.meetingId !== current.id && <button className="text-button" onClick={() => select(capture.meetingId)}>Go to recording</button>}
-            <div className="capture-actions">{capture.state === 'paused' ? <button className="secondary" onClick={() => void perform(() => api.resumeCapture())}><Play size={14} />Resume</button> : capture.state === 'recording' && <button className="secondary" onClick={() => void perform(() => api.pauseCapture())}><Pause size={14} />Pause</button>}
-              <button className="primary" disabled={capture.state === 'finishing'} onClick={() => void perform(() => api.stopCapture())}><Square size={13} />{capture.state === 'connecting' ? 'Cancel' : 'Stop'}</button></div>
-          </> : <><span className="capture-description">{current.entryKind === 'scratchpad' ? 'Speak a thought. Keep it here.' : 'Ready when the conversation starts.'}</span><div className="capture-actions">
-            <button className="secondary" disabled={busy || current.isTrashed} onClick={() => void cloud(() => api.startCapture(current.id, 'dictation'))}><Mic size={14} />Dictate</button>
-            <button className="primary" disabled={busy || current.isTrashed} onClick={() => void cloud(() => api.startCapture(current.id, 'meeting'))}><Mic size={14} />Record meeting</button></div></>}
-        </div>
         <div className={`document-layout ${inspector ? '' : 'without-transcript'}`}>
           <section className="document" aria-label="Meeting editor">
             {current.isTrashed && <div className="trash-notice"><Trash2 size={16} /><span>This note is in Trash.</span><button onClick={() => edit({ isTrashed: false })}>Restore</button></div>}
@@ -192,7 +192,7 @@ function App() {
       </div>}
     </main>
     <dialog className="settings-dialog" ref={dialog} aria-labelledby="settings-title" onClose={() => setSettings(false)}><div className="dialog-header"><h2 id="settings-title">Chirpberry Settings</h2><button className="icon-button" aria-label="Close settings" onClick={() => setSettings(false)}><X size={20} /></button></div>
-      {settings && runtime ? <SettingsPanel runtime={runtime} onChange={setRuntime} onCreated={meeting => { receive(meeting); setSettings(false); }} /> : <p>Loading settings…</p>}
+      {settings && runtime ? <SettingsPanel runtime={{ ...runtime, capture }} onChange={setRuntime} onCreated={meeting => { receive(meeting); setSettings(false); }} /> : <p>Loading settings…</p>}
     </dialog>
   </div>;
 }

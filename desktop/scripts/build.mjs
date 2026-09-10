@@ -10,7 +10,7 @@ await mkdir(`${destination}/renderer`, { recursive: true });
 // Map outputs, never production imports, for the isolated acceptance build.
 const compile = options => build({ ...options, outfile: options.outfile.replace(/^dist\//, `${destination}/`),
   ...(fixture && options.entryPoints.includes('src/main/index.ts') ? { plugins: [{ name: 'synthetic-runtime', setup(build) {
-    build.onResolve({ filter: /^\.\/runtime$/ }, args => args.importer.endsWith('/src/main/index.ts') ? { path: fileURLToPath(new URL('../tests/fixtures/runtime.ts', import.meta.url)) } : undefined);
+    build.onResolve({ filter: /^\.\/runtime$/ }, args => args.importer.replaceAll('\\', '/').endsWith('/src/main/index.ts') ? { path: fileURLToPath(new URL('../tests/fixtures/runtime.ts', import.meta.url)) } : undefined);
   } }] } : {}) });
 const copy = (source, output) => copyFile(source, output.replace(/^dist\//, `${destination}/`));
 await Promise.all([

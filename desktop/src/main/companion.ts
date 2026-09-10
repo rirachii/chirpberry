@@ -39,7 +39,11 @@ export class Companion {
         if (this.window === window) this.window = undefined;
         if (this.active) void stopCapture().catch(() => {});
       });
-      await window.loadURL('chirpberry://app/companion.html');
+      try { await window.loadURL('chirpberry://app/companion.html'); }
+      catch (error) {
+        // Settings or shutdown may destroy the companion while navigation is pending.
+        if (!window.isDestroyed()) throw error;
+      }
       if (window.isDestroyed()) return;
       this.position(); window.showInactive();
     } else this.position();

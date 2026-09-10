@@ -2,6 +2,8 @@ import { test, expect, _electron as electron, type ElectronApplication, type Pag
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 
+declare global { var companionLoadGate: { entered: boolean; release(): void } | undefined; }
+
 async function launch() {
   await mkdir('test-results', { recursive: true });
   const root = await mkdtemp(path.resolve('test-results/review-ui-'));
@@ -23,6 +25,40 @@ async function bar(application: ElectronApplication) {
   await expect.poll(() => application.windows().some(page => page.url().endsWith('/companion.html'))).toBe(true);
   return application.windows().find(page => page.url().endsWith('/companion.html'))!;
 }
+
+test('hiding the companion during its load keeps the notebook available', async () => {
+  test.skip(!!process.env.CHIRPBERRY_EXECUTABLE, 'Synthetic capture adapters are never packaged.');
+  const { application, page, root } = await launch();
+  try {
+    await (await bar(application)).waitForLoadState();
+    await settings(page, { barVisible: false });
+    await application.evaluate(({ BrowserWindow }) => {
+      const loadURL = BrowserWindow.prototype.loadURL;
+      let release = () => {};
+      const pending = new Promise<void>(resolve => { release = resolve; });
+      globalThis.companionLoadGate = { entered: false, release };
+      BrowserWindow.prototype.loadURL = async function (url, options) {
+        if (!url.endsWith('/companion.html')) return loadURL.call(this, url, options);
+        BrowserWindow.prototype.loadURL = loadURL;
+        globalThis.companionLoadGate!.entered = true;
+        // Hold startup until Settings has destroyed this window, regardless of host speed.
+        await pending;
+        return loadURL.call(this, url, options);
+      };
+    });
+    const showing = settings(page, { barVisible: true }).then(() => undefined, error => error.message);
+    await expect.poll(() => application.evaluate(() => globalThis.companionLoadGate!.entered)).toBe(true);
+    await settings(page, { barVisible: false });
+    await application.evaluate(() => globalThis.companionLoadGate!.release());
+    expect(await showing).toBeUndefined();
+    await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toBeVisible();
+    await settings(page, { barVisible: true });
+    await (await bar(application)).waitForLoadState();
+  } finally {
+    await application.evaluate(() => globalThis.companionLoadGate?.release()).catch(() => {});
+    await application.close(); await rm(root, { recursive: true, force: true });
+  }
+});
 
 test('collection navigation retains capture controls with the companion disabled', async () => {
   test.skip(!!process.env.CHIRPBERRY_EXECUTABLE, 'Synthetic capture adapters are never packaged.');

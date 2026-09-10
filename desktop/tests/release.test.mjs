@@ -93,6 +93,8 @@ test('release preparation from desktop archives the complete committed repositor
   t.after(() => rm(root, { recursive: true, force: true }));
   const desktop = path.join(root, 'desktop');
   const files = {
+    // Preserve exact fixture bytes even when the host Git enables CRLF conversion.
+    '.gitattributes': '* -text\n',
     '.gitignore': 'desktop/release/\n',
     'LICENSE': 'Source license fixture',
     'AGENTS.md': 'Contributor fixture',

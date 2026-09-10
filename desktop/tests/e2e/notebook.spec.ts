@@ -16,6 +16,9 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
   try {
     app = await launch();
     let page = await app.firstWindow();
+    // Exercise autosave at a compact width, as on smaller CI displays.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 700));
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1000);
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await expect(page.getByRole('heading', { name: 'Start with what matters.' })).toBeVisible();
@@ -24,7 +27,8 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original notes.\n讨论 Friday launch.');
     await page.getByRole('tab', { name: 'Summary', exact: true }).click();
     await page.getByRole('textbox', { name: 'Summary', exact: true }).fill('Summary stays separate.');
-    await expect(page.getByText('Saved on this device')).toBeVisible();
+    // Compact layouts hide this label; autosave must still reach the saved state.
+    await expect(page.locator('.save-status')).toHaveText('Saved on this device');
     // Closing immediately after an edit must flush, without waiting for the debounce.
     await page.getByRole('textbox', { name: 'Summary', exact: true }).fill('Latest summary before close.');
     await app.close();
@@ -89,7 +93,7 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     const isolation = await page.evaluate(() => ({ node: typeof (window as any).require, process: typeof (window as any).process, api: typeof window.chirpberry.load }));
     expect(isolation).toEqual({ node: 'undefined', process: 'undefined', api: 'function' });
     await page.screenshot({ path: info.outputPath('notebook-desktop.png') });
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'))!.setSize(780, 700));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'))!.setContentSize(780, 700));
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(780);
     await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
     await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toBeVisible();

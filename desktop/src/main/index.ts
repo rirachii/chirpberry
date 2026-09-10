@@ -118,7 +118,11 @@ if (locked) void app.whenReady().then(async () => {
   });
   handler('notebook:copy', id => clipboard.writeText(markdown(store.get(uuid.parse(id)))));
   handler('notebook:storage', async () => { const error = await shell.openPath(store.directory); if (error) throw new Error('The notebook folder could not be opened.'); });
-  const command = (value: 'new' | 'import' | 'search') => () => window?.webContents.send('notebook:command', value);
+  const command = (value: 'new' | 'import' | 'search') => () => {
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show(); app.focus({ steal: true }); window.focus(); window.webContents.send('notebook:command', value);
+  };
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
     { label: 'File', submenu: [

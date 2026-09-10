@@ -91,6 +91,7 @@ export class DesktopRuntime {
     try { this.keySaved = this.capabilities.protectedCredentials && await this.credentials.status(); }
     catch { this.capabilities.problem = 'The saved Valsea key could not be unlocked. Check Settings.'; }
     try { this.assistantKeySaved = this.assistantCredentials.available() && await this.assistantCredentials.status(); } catch { this.assistantKeySaved = false; }
+    this.configureCalendar();
   }
   snapshot(): RuntimeSnapshot { return { settings: this.settings.get(), capabilities: { ...this.capabilities }, keySaved: this.keySaved, assistantKeySaved: this.assistantKeySaved, capture: this.recording.snapshot() }; }
   private sendToNotebook(channel: string, value: unknown) {
@@ -124,9 +125,11 @@ export class DesktopRuntime {
     const settings = this.settings.get();
     await this.companion.configure(settings);
     this.companion.capture(this.recording.snapshot()); this.broadcast('runtime:changed', this.snapshot());
-    const wasConnected = this.calendarTracker.snapshot().connected;
-    this.calendarTracker.activate(settings.calendarEnabled);
-    if (settings.calendarEnabled && !wasConnected) void this.calendarTracker.refresh();
+  }
+  private configureCalendar() {
+    const enabled = this.settings.get().calendarEnabled, wasConnected = this.calendarTracker.snapshot().connected;
+    this.calendarTracker.activate(enabled);
+    if (enabled && !wasConnected) void this.calendarTracker.refresh();
   }
   private assertDisclosure() { if (!this.settings.get().disclosureAccepted) throw new Error('Review and accept the cloud processing disclosure in Settings first.'); }
   private async start(id: string, purpose: 'meeting' | 'dictation') {
@@ -168,7 +171,9 @@ export class DesktopRuntime {
   register(handle: Handler) {
     handle('runtime:load', () => this.snapshot());
     handle('runtime:settings', async input => {
+      const calendarEnabled = this.settings.get().calendarEnabled;
       await this.settings.save(input);
+      if (calendarEnabled !== this.settings.get().calendarEnabled) this.configureCalendar();
       if (!this.settings.get().disclosureAccepted) await this.recording.stop({ deliver: false });
       if (!this.settings.get().assistantDisclosureAccepted) this.assistant.cancel();
       await this.configure(); return this.snapshot();

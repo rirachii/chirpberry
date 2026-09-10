@@ -1,7 +1,7 @@
 import { DesktopRuntime as Runtime, type RuntimeAdapters } from '../../src/main/runtime';
 import { MacAudioInput, NativeBridge } from '../../src/main/native';
 import path from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { OpenAIMeetingService } from '../../src/main/assistant-service';
 import { clipboard } from 'electron';
 // This module is compiled only into test-build/. Production imports the real runtime directly.
@@ -28,7 +28,7 @@ const helper = (name: string, mode: string) => new NativeBridge(process.env.CHIR
 const adapters: RuntimeAdapters = {
   ...(recoveryBridge ? { native: recoveryBridge, calendar: async () => {
     const command = firstCalendarRequest ? 'hang' : 'calendar.upcoming'; firstCalendarRequest = false;
-    return recoveryBridge.request(command, {}, 100);
+    return recoveryBridge.request(command, {}, command === 'hang' ? 100 : 5000);
   } } : {}),
   ...(assistantFixture ? {
     calendar: async () => { const value = JSON.parse(readFileSync(process.env.CHIRPBERRY_FIXTURE_CALENDAR_FILE!, 'utf8')); if (value.error) throw new Error(value.error); return value; },
@@ -49,5 +49,20 @@ const adapters: RuntimeAdapters = {
   service: () => ({ format: async () => ({ markdown: 'Synthetic summary.', actions: [] }), transcribe: async () => 'Synthetic imported speech.' })
 };
 export class DesktopRuntime extends Runtime {
-  constructor(...args: ConstructorParameters<typeof Runtime>) { super(args[0], args[1], args[2], adapters); }
+  constructor(...args: ConstructorParameters<typeof Runtime>) {
+    super(args[0], args[1], args[2], adapters);
+    const gate = process.env.CHIRPBERRY_FIXTURE_STARTUP_GATE;
+    if (gate) {
+      const configure = this.companion.configure.bind(this.companion);
+      this.companion.configure = async settings => {
+        writeFileSync(`${gate}.waiting`, '');
+        const deadline = Date.now() + 15000;
+        while (!existsSync(gate)) {
+          if (Date.now() > deadline) throw new Error('Synthetic startup gate was not released.');
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        await configure(settings); writeFileSync(`${gate}.completed`, '');
+      };
+    }
+  }
 }

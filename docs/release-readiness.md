@@ -14,7 +14,7 @@ Updated 2026-09-10. Chirpberry 0.2.0 remains an unnotarized implementation candi
 
 The latest local regression run passed `scripts/verify.sh`: 32 Swift core tests, 27 native model tests, 54 desktop tests, three website tests, production builds, and MCP checks. The test suite includes timeout recovery, concurrent retry, shutdown during recovery, and suppression of late shortcut events. See [verification history](verification.md) for packaged-app and UI evidence, and [performance](performance.md) for the measurement procedure and limits.
 
-GitHub CI for the previous assistant commit `a5c85e0` passed notebook tests and installer builds on macOS, Windows, and Linux. CI results for that commit do not validate later changes or physical device behavior.
+Current GitHub CI results are attached to [draft PR #3](https://github.com/rirachii/chirpberry/pull/3). The matrix covers notebook tests and installer builds on macOS, Windows, and Linux. Passing CI does not establish physical device behavior.
 
 ## Required before release
 
@@ -23,7 +23,7 @@ GitHub CI for the previous assistant commit `a5c85e0` passed notebook tests and 
 | Valsea | Save a key directly in Settings, accept the processing disclosure, and verify live dictation, translated finals, last-segment delivery, summaries, audio import, and connection failures. |
 | Meeting AI | Save a separate OpenAI key and disclosure; verify a live answer, cancellation, source review, and response usefulness during a consented meeting. |
 | macOS Calendar | Complete the OS permission prompt and verify a real account's schedule, recurrence, note preparation, refresh, and disconnect. Retry is supported after a helper timeout. |
-| macOS capture and shortcuts | Verify microphone/system-audio approval and denial, both streams with headphones, pause/resume/stop/close/quit, and physical Fn outside Chirpberry. |
+| macOS capture and shortcuts | Verify microphone/system-audio approval and denial, both streams with headphones, pause/resume/stop/close/quit, physical Fn outside Chirpberry, and foreground-window activation from the companion. |
 | Performance | Measure sustained recording, a longer idle period, energy, and interaction latency with a large notebook. A short isolated idle sample is only a baseline. |
 | Windows and Linux | Verify actual microphone, permission, shortcut, persistence, clean install, and upgrade behavior on each OS; Windows loopback capture needs device acceptance. Linux system audio and calendar integration are unavailable. |
 | Distribution | Review the source, prepare exact-commit artifacts and checksums, verify mounted payloads and clean installation, publish and re-download assets, then verify the Homebrew cask and website download. Follow [releasing](releasing.md). |

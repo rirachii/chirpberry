@@ -18,11 +18,11 @@ These short local measurements do not establish cold-boot performance, energy us
 
 ## Local baseline — 2026-09-10
 
-Apple M4 Pro, 14 logical CPUs, 48 GiB RAM, Darwin 25.5.0 arm64. The package's `app.asar` SHA-256 was `d523064270a299a75553cf4a2eb21fe5f0e762fa7e5f4fc5886b162bc40e718f` in both runs.
+Apple M4 Pro, 14 logical CPUs, 48 GiB RAM, Darwin 25.5.0 arm64. After the startup and Search fixes, the package's `app.asar` SHA-256 was `0ab9384d47121f567edf41d786a6a401afcee028bf4a2e55cc85ab4dcb1c56f2` in both runs.
 
 | Notebook | Instrumented startup | Mean summed working set | Mean summed CPU | Mean idle wakeups/second |
 | --- | ---: | ---: | ---: | ---: |
-| Empty | 671 ms | 571 MiB | 0.026% | 8.9 |
-| 250 notes / 25,000 final segments / 5.4 MB JSON | 531 ms | 665 MiB | 0.034% | 9.1 |
+| Empty | 334 ms | 567 MiB | 0.027% | 8.7 |
+| 250 notes / 25,000 final segments / 5.4 MB JSON | 497 ms | 662 MiB | 0.030% | 8.8 |
 
-Each row represents one sequential launch and ten idle samples, not repeated statistical trials. The populated notebook's shorter launch is not evidence that larger notebooks are faster. These are local measurements with instrumentation and shared-memory overcounting; they do not establish a memory ceiling or recording-performance target.
+Each row represents one sequential launch and ten idle samples, not repeated statistical trials. These are local measurements with instrumentation and shared-memory overcounting; they do not establish a memory ceiling or recording-performance target.

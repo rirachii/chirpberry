@@ -29,6 +29,7 @@ function App() {
   const [upcoming, setUpcoming] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [sidebar, setSidebar] = useState(true);
+  const [searchRequest, setSearchRequest] = useState(0);
   const [contextMenu, setContextMenu] = useState<MenuPoint>();
   const [settings, setSettings] = useState(false);
   const [message, setMessage] = useState('');
@@ -82,8 +83,9 @@ function App() {
   useEffect(() => api.onCommand(command => {
     if (command === 'new') void create();
     if (command === 'import') void importDocument();
-    if (command === 'search') { setSidebar(true); requestAnimationFrame(() => search.current?.focus()); }
+    if (command === 'search') { setSidebar(true); setSearchRequest(value => value + 1); }
   }), [create, importDocument]);
+  useEffect(() => { if (searchRequest && loaded) search.current?.focus(); }, [searchRequest, loaded]);
   function chooseFilter(next: Filter) { setFilter(next); select(undefined); setContextMenu(undefined); setUpcoming(false); }
   useEffect(() => { if (focusNewNote.current && current) { editor.current?.focus(); focusNewNote.current = false; } }, [selectedID]);
   function edit(patch: MeetingPatch) {

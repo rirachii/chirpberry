@@ -9,20 +9,21 @@ export class NativeBridge extends EventEmitter {
   private exited?: Promise<void>;
   private termination?: Promise<void>;
   private destroyed = false;
+  private launched = false;
   private buffer = '';
   private pending = new Map<string, { resolve(value: any): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
-  constructor(readonly executable: string, private args: string[] = [], private terminationGraceMS = 1500) { super(); }
-  get running() { return !this.destroyed && !!this.child && this.child.exitCode === null && this.child.signalCode === null; }
-  private start() {
+  constructor(readonly executable: string, private args: string[] = [], private terminationGraceMS = 1500, private recoverAfterFailure = false) { super(); }
+  get running() { return !this.destroyed && !this.termination && !!this.child && this.child.exitCode === null && this.child.signalCode === null; }
+  private start(command: string) {
     if (this.destroyed) throw new Error('The Mac integration was closed. Restart Chirpberry to reconnect it.');
     if (this.child) return;
     const child = spawn(this.executable, this.args, { stdio: 'pipe', windowsHide: true }); this.child = child;
     this.exited = new Promise(resolve => child.once('close', () => { this.disconnected(child); resolve(); }));
     child.stdout.setEncoding('utf8'); child.stderr.resume(); // Never forward native diagnostics or audio to logs.
     child.stdout.on('data', (data: string) => {
-      if (this.destroyed || this.child !== child) return;
+      if (this.destroyed || this.termination || this.child !== child) return;
       this.buffer += data;
-      if (this.buffer.length > 1024 * 1024) { void this.destroy(); return; }
+      if (this.buffer.length > 1024 * 1024) { void this.fail(); return; }
       let newline: number;
       while ((newline = this.buffer.indexOf('\n')) >= 0) {
         const line = this.buffer.slice(0, newline); this.buffer = this.buffer.slice(newline + 1);
@@ -33,18 +34,28 @@ export class NativeBridge extends EventEmitter {
             clearTimeout(request.timer); this.pending.delete(value.id);
             if (typeof value.error === 'string') request.reject(new Error(value.error.slice(0, 500))); else request.resolve(value.result);
           } else if (['audio', 'failure', 'shortcut'].includes(value.event)) this.emit(value.event, value);
-        } catch { void this.destroy(); return; }
+        } catch { void this.fail(); return; }
       }
     });
-    child.on('error', () => { void this.destroy(); });
-    child.stdin.on('error', () => { void this.destroy(); });
+    child.on('error', () => { if (this.child === child) void this.fail(); });
+    child.stdin.on('error', () => { if (this.child === child) void this.fail(); });
+    const restarted = this.launched; this.launched = true;
+    if (restarted) this.emit('restarted', { command });
   }
   async request<T = any>(command: string, args: Record<string, unknown> = {}, timeout = 30000): Promise<T> {
-    this.start(); const id = randomUUID();
+    // A new request may recover the long-lived integration helper, never replay
+    // the failed command. Capture bridges retain terminal cancellation semantics.
+    const previous = this.termination;
+    if (previous) {
+      await previous;
+      if (this.termination === previous && !this.destroyed) this.termination = undefined;
+    }
+    this.start(command); const id = randomUUID();
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('The Mac integration timed out. Check its permission prompts and try again.')); void this.destroy(); }, timeout);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('The Mac integration timed out. Check its permission prompts and try again.')); void this.fail(); }, timeout);
       this.pending.set(id, { resolve, reject, timer });
-      this.child!.stdin.write(JSON.stringify({ id, command, arguments: args }) + '\n', error => { if (error) void this.destroy(); });
+      const child = this.child!;
+      child.stdin.write(JSON.stringify({ id, command, arguments: args }) + '\n', error => { if (error && this.child === child) void this.fail(); });
     });
   }
   private rejectPending() {
@@ -56,9 +67,16 @@ export class NativeBridge extends EventEmitter {
     this.child = undefined; this.rejectPending();
     if (!this.destroyed) this.emit('failure', { message: 'The Mac capture process stopped. Saved transcripts are retained.' });
   }
+  private fail(): Promise<void> {
+    if (!this.recoverAfterFailure) this.destroyed = true;
+    return this.terminate();
+  }
   destroy(): Promise<void> {
-    if (this.termination) return this.termination;
     this.destroyed = true;
+    return this.terminate();
+  }
+  private terminate(): Promise<void> {
+    if (this.termination) return this.termination;
     const child = this.child;
     if (!child) return this.termination = Promise.resolve();
     const timer = setTimeout(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); }, this.terminationGraceMS);

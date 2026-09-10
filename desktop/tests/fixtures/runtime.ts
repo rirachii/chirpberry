@@ -7,6 +7,10 @@ import { clipboard } from 'electron';
 // This module is compiled only into test-build/. Production imports the real runtime directly.
 const lifecycleDirectory = process.env.CHIRPBERRY_FIXTURE_LIFECYCLE_DIR;
 const assistantFixture = process.env.CHIRPBERRY_FIXTURE_ASSISTANT === '1';
+const recoveryDirectory = process.env.CHIRPBERRY_FIXTURE_RECOVERY_DIR;
+const recoveryBridge = recoveryDirectory ? new NativeBridge(process.env.CHIRPBERRY_FIXTURE_NODE_EXECUTABLE!,
+  [path.resolve('tests/fixtures/native-helper.mjs'), path.join(recoveryDirectory, 'helper.jsonl'), 'hang-exit'], 150, true) : undefined;
+let firstCalendarRequest = true;
 if (lifecycleDirectory) {
   const copies: string[] = [];
   const file = path.join(lifecycleDirectory, 'clipboard.json');
@@ -22,6 +26,10 @@ if (lifecycleDirectory) {
 const helper = (name: string, mode: string) => new NativeBridge(process.env.CHIRPBERRY_FIXTURE_NODE_EXECUTABLE!,
   [path.resolve('tests/fixtures/native-helper.mjs'), path.join(lifecycleDirectory!, `${name}.jsonl`), mode], 150);
 const adapters: RuntimeAdapters = {
+  ...(recoveryBridge ? { native: recoveryBridge, calendar: async () => {
+    const command = firstCalendarRequest ? 'hang' : 'calendar.upcoming'; firstCalendarRequest = false;
+    return recoveryBridge.request(command, {}, 100);
+  } } : {}),
   ...(assistantFixture ? {
     calendar: async () => { const value = JSON.parse(readFileSync(process.env.CHIRPBERRY_FIXTURE_CALENDAR_FILE!, 'utf8')); if (value.error) throw new Error(value.error); return value; },
     assistantCredentials: { available: () => true, read: async () => 'synthetic-openai-key', save: async (key: unknown) => !!key, status: async () => true },

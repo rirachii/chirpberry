@@ -5,11 +5,11 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { MacAudioInput, NativeBridge } from '../src/main/native';
 
-async function helper(t: TestContext, mode = 'hang-exit') {
+async function helper(t: TestContext, mode = 'hang-exit', recoverAfterFailure = false) {
   await mkdir('test-results', { recursive: true });
   const directory = await mkdtemp(path.resolve('test-results/native-lifecycle-'));
   const log = path.join(directory, 'helper.jsonl');
-  const bridge = new NativeBridge(process.execPath, [path.resolve('tests/fixtures/native-helper.mjs'), log, mode], 150);
+  const bridge = new NativeBridge(process.execPath, [path.resolve('tests/fixtures/native-helper.mjs'), log, mode], 150, recoverAfterFailure);
   t.after(async () => { await bridge.destroy(); await rm(directory, { recursive: true, force: true }); });
   const events = async (): Promise<{ pid: number; event: string; command?: string }[]> => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
   const waitFor = async (command: string) => {
@@ -50,6 +50,41 @@ test('request timeout teardown remains awaitable until the real helper exits', a
   await assert.rejects(bridge.request('hang', {}, 30), /timed out/);
   await bridge.destroy();
   assertExited(pid);
+});
+
+test('integration retry after a permission timeout waits for teardown and uses one new helper', async t => {
+  const { bridge, events } = await helper(t, 'hang-exit', true);
+  const first = await bridge.request<{ pid: number }>('ping');
+  await assert.rejects(bridge.request('hang', {}, 30), /timed out/);
+  const retried = await Promise.all([bridge.request<{ pid: number }>('ping'), bridge.request<{ pid: number }>('ping')]);
+  assertExited(first.pid);
+  assert.notEqual(retried[0].pid, first.pid);
+  assert.equal(retried[0].pid, retried[1].pid);
+  assert.equal((await events()).filter(event => event.event === 'started').length, 2);
+  assert.equal((await events()).filter(event => event.command === 'hang').length, 1, 'A timed-out command must not be replayed');
+  await bridge.destroy();
+  await assert.rejects(bridge.request('ping'), /closed/);
+  assertExited(retried[0].pid);
+});
+
+test('app shutdown during a recovery wait prevents a replacement helper from starting', async t => {
+  const { bridge, events } = await helper(t, 'hang-exit', true);
+  const { pid } = await bridge.request<{ pid: number }>('ping');
+  await assert.rejects(bridge.request('hang', {}, 30), /timed out/);
+  const retry = bridge.request('ping');
+  const rejected = assert.rejects(retry, /closed/);
+  await Promise.all([bridge.destroy(), rejected]);
+  assertExited(pid);
+  assert.equal((await events()).filter(event => event.event === 'started').length, 1);
+});
+
+test('a retiring integration helper cannot emit a late shortcut that starts recording', async t => {
+  const { bridge } = await helper(t, 'late-shortcut', true);
+  let shortcuts = 0; bridge.on('shortcut', () => shortcuts++);
+  await bridge.request('ping');
+  await assert.rejects(bridge.request('hang', {}, 30), /timed out/);
+  await bridge.request('ping');
+  assert.equal(shortcuts, 0);
 });
 
 test('aborting a permission-like start retains teardown for concurrent stop callers', async t => {

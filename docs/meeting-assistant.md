@@ -20,6 +20,8 @@ Approved scope: calendar-linked meeting preparation and tracking, reviewed note 
 5. Run actual Electron E2E using deterministic calendar/audio/AI adapters, plus a local HTTP server exercising the production streaming parser. Run the repository verification script and packaged-app acceptance.
 6. Separately verify real calendar authorization and live speech/AI requests when the user has connected their accounts. Never substitute synthetic success for provider or OS acceptance.
 
+The [release readiness checklist](release-readiness.md) tracks the remaining gates. Mac Calendar retries now recover a timed-out integration helper without restarting the application: teardown completes before replacement, shortcuts are restored, and the failed command is not replayed. Capture cancellation and app exit remain terminal. The regression suite exercises the actual Electron retry flow with a synthetic helper; this is independent of real Calendar permission acceptance.
+
 ## Product demos and protocol sources
 
 - [Granola demo meeting](https://www.granola.ai/demo-meeting), linked by its [setup guide](https://docs.granola.ai/help-center/getting-started/setting-up-granola-for-the-first-time).

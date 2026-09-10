@@ -48,7 +48,7 @@ export class DesktopRuntime {
   constructor(private store: MeetingStore, profile: string, private notebook: () => BrowserWindow | undefined, private adapters?: RuntimeAdapters) {
     const disabled = process.env.CHIRPBERRY_DISABLE_OS_INTEGRATIONS === '1';
     if (adapters) this.native = adapters.native;
-    else if (process.platform === 'darwin' && !disabled) this.native = new NativeBridge(this.nativePath);
+    else if (process.platform === 'darwin' && !disabled) this.native = new NativeBridge(this.nativePath, [], 1500, true);
     this.settings = new SettingsStore(profile);
     this.credentials = adapters?.credentials ?? new Credentials(profile, this.native, disabled);
     this.assistantCredentials = adapters?.assistantCredentials ?? new Credentials(profile, this.native, disabled, 'assistant');
@@ -80,6 +80,12 @@ export class DesktopRuntime {
       catch { this.capabilities.microphone = false; this.capabilities.systemAudio = false; this.capabilities.calendar = false;
         this.capabilities.problem = 'The Mac capture helper is unavailable. Rebuild or reinstall Chirpberry for macOS 26.'; }
       this.native.on('shortcut', event => { if (event.action === 1) void this.shortcut('dictation'); if (event.action === 2) void this.shortcut('meeting'); if (event.action === 3) void this.shortcut('scratchpad'); });
+      this.native.on('failure', () => {
+        this.capabilities.fn = false;
+        this.capabilities.shortcut = this.settings.get().shortcutsEnabled ? 'Mac shortcuts disconnected — retry an action or save Settings to reconnect' : undefined;
+        this.broadcast('runtime:changed', this.snapshot());
+      });
+      this.native.on('restarted', event => { if (!this.stopped && event.command !== 'shortcuts.configure') void this.configureShortcuts(); });
     }
     this.capabilities.protectedCredentials = this.credentials.available();
     try { this.keySaved = this.capabilities.protectedCredentials && await this.credentials.status(); }
@@ -94,7 +100,8 @@ export class DesktopRuntime {
   private broadcast(channel: string, ...args: unknown[]) {
     for (const window of [this.notebook(), this.companion.window]) if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send(channel, ...args);
   }
-  async configure() {
+  private async configureShortcuts() {
+    if (this.stopped) return;
     const settings = this.settings.get();
     if (this.native) {
       try {
@@ -110,6 +117,11 @@ export class DesktopRuntime {
         this.capabilities.shortcut = dictation ? 'Ctrl+Alt+D' : 'Shortcut unavailable — another app may be using it';
       } else this.capabilities.shortcut = undefined;
     }
+    this.broadcast('runtime:changed', this.snapshot());
+  }
+  async configure() {
+    await this.configureShortcuts();
+    const settings = this.settings.get();
     await this.companion.configure(settings);
     this.companion.capture(this.recording.snapshot()); this.broadcast('runtime:changed', this.snapshot());
     const wasConnected = this.calendarTracker.snapshot().connected;

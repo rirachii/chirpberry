@@ -75,7 +75,9 @@ No background listener, public share service, team synchronization, or outbound 
 ## Verification
 
 Core tests cover source/translation semantics, provisional/final state, deduplication, session boundaries, storage recovery, exports, parsing, and retrieval.
-Provider-backed verification and actual capture tests are separate release gates from unit tests.
+The long-lived Mac integration helper can recover after a timeout or process failure on the next request. Recovery awaits the previous process's exit, ignores its late events, starts one replacement, and restores the saved shortcut configuration. The failed action is never replayed. Explicit shutdown is terminal, and capture helpers retain terminal cancellation semantics; integration recovery cannot resume recording.
+
+Provider-backed verification and actual capture tests are separate release gates from unit tests. The current outstanding gates are tracked in [release readiness](release-readiness.md).
 The website currently uses a labelled HTML illustration of the notebook.
 A verified native screenshot is a separate visual acceptance task.
 Release packaging must include the exact source revision, the selected app and its MCP entrypoint, source archive, manifest, and checksums. Native and Electron release scripts and artifacts are separate; [releasing](releasing.md) owns those procedures.

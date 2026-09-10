@@ -15,6 +15,7 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
     await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original thought.');
     await page.getByRole('button', { name: 'Dictate', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
+    await page.screenshot({ path: info.outputPath('synthetic-cloud-disclosure.png') });
     await page.getByRole('checkbox', { name: /I understand and agree/ }).check();
     await page.getByRole('button', { name: 'Save settings', exact: true }).click();
     await expect(page.getByText('Settings saved.', { exact: true })).toBeVisible();
@@ -23,6 +24,7 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
     await page.getByRole('button', { name: 'Dictate', exact: true }).click();
     await expect(page.getByText('Synthetic live draft', { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toHaveValue('Keep my original thought.');
+    await page.screenshot({ path: info.outputPath('synthetic-live-draft.png') });
     await page.getByRole('button', { name: 'Pause', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
     expect(await application.evaluate(({ clipboard }) => clipboard.readText())).toBe(originalClipboard);
@@ -34,6 +36,8 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
     await page.getByRole('tab', { name: 'Summary', exact: true }).click();
     await page.getByRole('button', { name: 'Generate summary', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Summary', exact: true })).toHaveValue('Synthetic summary.');
+    await page.screenshot({ path: info.outputPath('synthetic-final-and-summary.png') });
+    await writeFile(info.outputPath('synthetic-clipboard.txt'), await application.evaluate(({ clipboard }) => clipboard.readText()));
     const audio = path.join(root, 'synthetic.wav'); await writeFile(audio, Buffer.alloc(44));
     await application.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, audio);
     await page.getByRole('button', { name: 'Transcribe audio file', exact: true }).click();
@@ -51,6 +55,7 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
     const files = await readdir(path.join(root, 'documents'));
     const contents = await Promise.all(files.filter(file => file.endsWith('.json')).map(file => readFile(path.join(root, 'documents', file), 'utf8')));
     expect(contents.join('')).not.toContain('Synthetic live draft'); expect(contents.join('')).not.toContain('synthetic-key');
+    await writeFile(info.outputPath('synthetic-persisted-meetings.json'), JSON.stringify(contents.map(content => JSON.parse(content)), null, 2));
     expect(errors).toEqual([]);
   } finally {
     await application.evaluate(({ clipboard }, text) => clipboard.writeText(text), originalClipboard).catch(() => {});

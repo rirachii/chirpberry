@@ -13,7 +13,7 @@ test('dictation saves only final source text, waits for the last final, and copi
   const note = await store.create('scratchpad'); store.update(note.id, { notes: 'Original notes' }); await store.flush();
   const copied: string[] = []; let emit: (event: TranscriptEvent) => void = () => {};
   let audioStarts = 0, audioStops = 0;
-  const controller = new RecordingController({ store, getKey: async () => 'fixture-key', copy: value => copied.push(value), changed: () => {},
+  const controller = new RecordingController({ store, getKey: async () => 'fixture-key', copy: value => { copied.push(value); }, changed: () => {},
     createAudio: () => ({ start: async () => { audioStarts++; }, stop: async () => { audioStops++; } }),
     createStream: options => { emit = options.onEvent; return { connect: async () => {}, sendAudio: () => true, close: () => {},
       finish: async () => { emit({ type: 'transcript.final', text: 'Final words.', event_id: 'two' }); } }; } });
@@ -92,6 +92,51 @@ function gate() {
   return { promise, release };
 }
 
+for (const outcome of ['resolve', 'reject'] as const) {
+  test(`Stop awaits a clipboard write that will ${outcome}, retains saved notes, and delivers at most once`, async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'chirpberry-clipboard-'));
+    const store = new MeetingStore(directory); await store.load();
+    const note = await store.create('scratchpad'); store.update(note.id, { notes: 'Original notes' }); await store.flush();
+    const writing = gate(), delivery = gate();
+    const clipboardWrite = delivery.promise.then(() => {
+      if (outcome === 'reject') throw new Error('Clipboard unavailable');
+    });
+    // Keep a broken controller's unobserved rejection from escaping the test harness.
+    void clipboardWrite.catch(() => {});
+    const copies: string[] = []; let audioStops = 0;
+    const controller = new RecordingController({ store, getKey: async () => 'fixture', changed: () => {},
+      copy: text => { copies.push(text); writing.release(); return clipboardWrite; },
+      createAudio: () => ({ start: async () => {}, stop: async () => { audioStops++; } }),
+      createStream: options => ({ connect: async () => {}, sendAudio: () => true, close: () => {},
+        finish: async () => { options.onEvent({ type: 'transcript.final', text: 'Final dictation.', event_id: 'final' }); } }) });
+    try {
+      await controller.start({ meetingId: note.id, purpose: 'dictation', includeSystemAudio: false, language: 'auto', diarize: false, disclosureAccepted: true });
+      const stopping = controller.stop(); let completed = false;
+      void stopping.then(() => { completed = true; });
+      await writing.promise;
+      await new Promise<void>(resolve => setImmediate(resolve));
+      assert.equal(completed, false, 'Stop must remain pending until clipboard delivery settles');
+      assert.equal(controller.snapshot().state, 'finishing');
+      assert.equal(controller.snapshot().message, undefined);
+      assert.equal(controller.stop(), stopping);
+      assert.equal(controller.stop({ deliver: false }), stopping, 'Shutdown must await the already pending clipboard write');
+      const saved = JSON.parse(await readFile(path.join(directory, `${note.id}.json`), 'utf8'));
+      assert.equal(saved.notes, 'Original notes\nFinal dictation.');
+      assert.equal(saved.segments.length, 1);
+      delivery.release(); await stopping;
+      assert.equal(controller.active, false);
+      assert.equal(controller.snapshot().message, outcome === 'resolve'
+        ? 'Copied to clipboard. A copy is saved in Scratchpad.'
+        : 'Could not write to the clipboard. Your dictation is saved in Scratchpad.');
+      await controller.stop();
+      assert.deepEqual(copies, ['Final dictation.']); assert.equal(audioStops, 1);
+      const reloaded = new MeetingStore(directory); await reloaded.load();
+      assert.equal(reloaded.get(note.id).notes, saved.notes);
+      assert.deepEqual(reloaded.get(note.id).segments, saved.segments);
+    } finally { delivery.release(); await controller.stop({ deliver: false }); await rm(directory, { recursive: true, force: true }); }
+  });
+}
+
 for (const during of ['provider drain', 'persistence'] as const) {
   for (const outcome of ['deliver', 'cancel', 'provider failure', 'save failure'] as const) {
     test(`a full Stop during Pause ${during} finishes once with ${outcome}`, async () => {
@@ -109,7 +154,7 @@ for (const during of ['provider drain', 'persistence'] as const) {
       await store.load();
       const note = await store.create('scratchpad'); store.update(note.id, { notes: 'Original notes' }); await store.flush();
       const copied: string[] = []; let stops = 0, finishes = 0;
-      const controller = new RecordingController({ store, getKey: async () => 'fixture', changed: () => {}, copy: text => copied.push(text),
+      const controller = new RecordingController({ store, getKey: async () => 'fixture', changed: () => {}, copy: text => { copied.push(text); },
         createAudio: () => ({ start: async () => {}, stop: async () => { stops++; } }),
         createStream: options => ({ connect: async () => {}, close: () => {}, sendAudio: () => true, finish: async () => {
           finishes++; draining.release(); await final.promise;

@@ -13,7 +13,7 @@ type Job = { options: CaptureOptions; phase: string; abort: AbortController; str
   audio?: AudioInput; reducer: TranscriptReducer; finals: Promise<void>; queuedFinals: number; text: string;
   elapsed: number; phaseOffset: number; startedAt?: number; deliveryAllowed: boolean; pauseAfterStop: boolean; failure?: string; stopping?: Promise<void> };
 type Dependencies = { store: MeetingStore; getKey(): Promise<string>; createAudio(): AudioInput;
-  createStream(options: RealtimeOptions): SpeechStream; copy(text: string): void;
+  createStream(options: RealtimeOptions): SpeechStream; copy(text: string): void | Promise<void>;
   changed(snapshot: CaptureSnapshot): void; meetingChanged?(meeting: Meeting, fields: (keyof Meeting)[]): void };
 
 /** One capture owner for the notebook, companion, shortcuts, and application lifecycle. */
@@ -140,7 +140,7 @@ export class RecordingController {
       if (job.options.purpose === 'dictation' && job.deliveryAllowed && !job.failure) {
         if (job.text.trim()) {
           const destination = this.dependencies.store.get(job.options.meetingId).entryKind === 'scratchpad' ? 'Scratchpad' : 'this note';
-          try { this.dependencies.copy(job.text); message = `Copied to clipboard. A copy is saved in ${destination}.`; }
+          try { await this.dependencies.copy(job.text); message = `Copied to clipboard. A copy is saved in ${destination}.`; }
           catch { message = `Could not write to the clipboard. Your dictation is saved in ${destination}.`; }
         }
         else message = 'No final speech received. Your clipboard is unchanged.';

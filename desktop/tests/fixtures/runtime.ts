@@ -11,6 +11,11 @@ if (lifecycleDirectory) {
   writeFileSync(file, '[]');
   clipboard.writeText = async text => { copies.push(text); writeFileSync(file, JSON.stringify(copies)); };
   clipboard.readText = async () => JSON.stringify(copies);
+} else {
+  // Fixture acceptance must never replace the user's OS clipboard.
+  let text = 'Existing synthetic clipboard';
+  clipboard.writeText = value => { text = value; };
+  clipboard.readText = () => text;
 }
 const helper = (name: string, mode: string) => new NativeBridge(process.env.CHIRPBERRY_FIXTURE_NODE_EXECUTABLE!,
   [path.resolve('tests/fixtures/native-helper.mjs'), path.join(lifecycleDirectory!, `${name}.jsonl`), mode], 150);

@@ -10,7 +10,7 @@ Speech and requested summaries are sent directly to the user's Valsea account.
 
 The runnable local notebook is in `desktop/`. It preserves the version-1 document format and uses a separate Electron store. See its [README](../desktop/README.md) for implemented behavior and exact validation commands.
 
-Capture adapters, provider lifecycle, protected credentials, floating companion, clipboard dictation, Mac calendar preparation, summaries, audio import, and read-only MCP are implemented in the Electron candidate. Complete live provider/permission/device acceptance and qualify Windows/Linux installers before replacing the native app.
+Capture adapters, provider lifecycle, protected credentials, floating companion, clipboard dictation, Mac calendar preparation and tracking, reviewed note sharing, streaming OpenAI meeting questions and response drafts, summaries, audio import, and read-only MCP are implemented in the Electron candidate. The [meeting assistant contract](meeting-assistant.md) records the expanded scope, reference demos, and independent live-account gates. Complete live provider/permission/device acceptance and qualify Windows/Linux installers before replacing the native app.
 Measure total process memory, idle CPU/energy, startup, and sustained recording before promoting Electron to the replacement app. Preserve the current native implementation and its release gates during this work.
 
 ## Steps

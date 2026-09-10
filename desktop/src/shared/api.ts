@@ -1,10 +1,13 @@
 import type { Meeting, MeetingPatch } from './meeting';
 import type { AppSettings, Capabilities, CaptureSnapshot } from './capture';
+import type { CalendarEvent, CalendarSnapshot } from './calendar';
+import type { AskRequest, AssistantAnswer } from './assistant';
+import type { ShareOptions, SharePreview } from './share';
+export type { CalendarEvent } from './calendar';
 
 export type SaveStatus = { state: 'saved' | 'saving' | 'error'; message?: string };
 export type NotebookSnapshot = { meetings: Meeting[]; unreadable: string[]; platform: string };
-export type RuntimeSnapshot = { settings: AppSettings; capabilities: Capabilities; keySaved: boolean; capture: CaptureSnapshot };
-export type CalendarEvent = { id: string; title: string; start: string; end: string; location: string };
+export type RuntimeSnapshot = { settings: AppSettings; capabilities: Capabilities; keySaved: boolean; assistantKeySaved: boolean; capture: CaptureSnapshot };
 export interface NotebookAPI {
   load(): Promise<NotebookSnapshot>;
   create(kind: 'meeting' | 'scratchpad'): Promise<Meeting>;
@@ -16,6 +19,14 @@ export interface NotebookAPI {
   runtime(): Promise<RuntimeSnapshot>;
   saveSettings(settings: AppSettings): Promise<RuntimeSnapshot>;
   saveKey(key: string): Promise<boolean>;
+  saveAssistantKey(key: string): Promise<boolean>;
+  ask(request: AskRequest): Promise<void>;
+  assistantThread(meetingId: string): Promise<AssistantAnswer[]>;
+  stopAnswer(requestId: string): Promise<void>;
+  clearAssistant(meetingId: string): Promise<void>;
+  copyAnswer(meetingId: string, requestId: string, draft?: string): Promise<void>;
+  previewShare(meetingId: string, options: ShareOptions): Promise<SharePreview>;
+  deliverShare(token: string, method: 'copy' | 'export'): Promise<boolean>;
   requestAccessibility(): Promise<RuntimeSnapshot>;
   startCapture(meetingId: string, purpose: 'meeting' | 'dictation'): Promise<void>;
   stopCapture(): Promise<void>;
@@ -25,10 +36,17 @@ export interface NotebookAPI {
   summarize(id: string): Promise<void>;
   importAudio(): Promise<Meeting | null>;
   calendar(): Promise<CalendarEvent[]>;
+  calendarSnapshot(): Promise<CalendarSnapshot>;
+  connectCalendar(): Promise<CalendarSnapshot>;
+  disconnectCalendar(): Promise<void>;
+  refreshCalendar(): Promise<CalendarSnapshot>;
+  joinEvent(id: string): Promise<void>;
   prepareEvent(event: CalendarEvent): Promise<Meeting>;
   onCapture(callback: (snapshot: CaptureSnapshot) => void): () => void;
   onMeeting(callback: (meeting: Meeting, fields: (keyof Meeting)[]) => void): () => void;
   onRuntime(callback: (snapshot: RuntimeSnapshot) => void): () => void;
+  onCalendar(callback: (snapshot: CalendarSnapshot) => void): () => void;
+  onAssistant(callback: (answer: AssistantAnswer) => void): () => void;
   onSelect(callback: (id: string) => void): () => void;
   onSaveStatus(callback: (status: SaveStatus) => void): () => void;
   onCommand(callback: (command: 'new' | 'import' | 'search') => void): () => void;

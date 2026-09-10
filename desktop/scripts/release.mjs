@@ -39,6 +39,7 @@ export async function prepareRelease({ desktop = fileURLToPath(new URL('..', imp
         await execute('hdiutil', ['attach', '-readonly', '-nobrowse', '-mountpoint', mount, path.join(staging, image)]); attached = true;
         const bundle = path.join(mount, 'Chirpberry.app');
         await execute('codesign', ['--verify', '--deep', '--strict', bundle]);
+        await execute(node, [path.join(desktop, 'scripts/verify-mac-permissions.mjs'), bundle]);
         const relative = 'Contents/Resources/app.asar';
         if (await digest(path.join(bundle, relative)) !== await digest(path.join(staging, 'mac-arm64/Chirpberry.app', relative))) throw new Error('The DMG contains a different app payload.');
         if (await digest(path.join(mount, 'INSTALL.txt')) !== await digest(path.join(desktop, 'INSTALL.txt'))) throw new Error('The DMG installation instructions do not match this source.');

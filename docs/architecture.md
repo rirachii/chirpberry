@@ -64,10 +64,11 @@ Companion renderer termination cancels Electron capture through the shared recor
 
 EventKit reads upcoming calendar events only after the user connects calendars.
 It never writes to the calendar.
-Related prior notes provide a local preparation view.
+Electron's Upcoming tracker refreshes every minute while connected, preserves event-occurrence identity, coalesces concurrent refreshes and note creation, and discards pending results after disconnect. Explicit Connect may request permission; background refresh never requests it. Calendar errors keep the last schedule visibly stale. Optional reminders are local notifications; event links must be HTTPS. Native related prior notes provide a local preparation view.
 Search indexes titles, personal notes, enhanced notes, speaker names, source text, and translations in memory.
-Native on-device question answering uses Apple Foundation Models when available, with a maximum of four retrieved source excerpts and validated source indices. Electron does not yet implement this feature.
-Without an available model, the UI identifies its output as matching source excerpts.
+Native on-device question answering uses Apple Foundation Models when available, with a maximum of four retrieved source excerpts and validated source indices. Without an available native model, the UI identifies its output as matching source excerpts.
+Electron's optional meeting assistant uses main-process OpenAI Responses streaming with a separate protected API key and disclosure, `store: false`, no tools, and bounded input/output and timeouts. Each request snapshots only the selected meeting's notes, generated summary, and persisted final speech; source IDs resolve to immutable excerpts. Threads hold up to eight answers per meeting across twenty meetings in session memory. Cancellation, deletion, and shutdown ignore late chunks. Switching notes cannot retarget a response; assistant cancellation is independent of capture.
+Reviewed sharing builds a main-process snapshot from explicitly selected note sections. A ten-minute token binds copy/export to that exact content. Notes and transcript are opt-in; assistant conversations never enter the document or share payload. Markdown export uses atomic replacement. The [meeting assistant contract](meeting-assistant.md) owns setup and acceptance details.
 The native chirpberry-mcp executable and Electron's portable mcp.cjs expose read-only search_meetings and get_meeting tools over stdio only when a user launches them through an AI client. See [Electron MCP usage](../desktop/README.md#implemented-behavior) for runtime and notebook-directory selection.
 No background listener, public share service, team synchronization, or outbound messaging is present.
 

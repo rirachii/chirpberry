@@ -56,10 +56,13 @@
     "mac": {
       "category": "public.app-category.productivity",
       "identity": "-",
+      "entitlements": "native/entitlements.mac.plist",
+      "entitlementsInherit": "native/entitlements.mac.plist",
       "minimumSystemVersion": "26.0",
       "target": [{ "target": "dmg", "arch": ["arm64"] }, { "target": "zip", "arch": ["arm64"] }],
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Chirpberry records audio only when you start a meeting or dictation.",
+        "NSCalendarsFullAccessUsageDescription": "Chirpberry reads upcoming events to prepare notes. You choose when to send notes for AI processing.",
         "NSScreenCaptureUsageDescription": "Chirpberry includes system audio only when you choose it for a meeting."
       },
       "extraResources": [

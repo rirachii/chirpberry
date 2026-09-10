@@ -3,7 +3,7 @@
 An original, open-source notebook for multilingual meetings.
 Chirpberry is adopting Electron for macOS and Windows, with Linux support qualified separately. The existing SwiftUI Mac app remains available during migration and uses your Valsea account for live transcription, translation, and meeting summaries.
 
-The [Electron implementation candidate](desktop/README.md) includes recording, clipboard dictation, Valsea transcription/translation and summaries, a floating bar, audio import, and protected credential storage alongside local notebooks. It uses a separate data folder. Automated Mac notebook and synthetic recording acceptance have passed; live OS/provider and Windows/Linux acceptance remain required before release. The native feature and release information below applies to the SwiftUI app.
+The [Electron implementation candidate](desktop/README.md) includes recording, clipboard dictation, Valsea transcription/translation and summaries, a floating bar, audio import, and protected credential storage alongside local notebooks. It adds upcoming Mac calendars, reviewed note sharing, and optional OpenAI meeting questions and editable response suggestions during recording. It uses a separate data folder. Automated Mac notebook and synthetic recording acceptance have passed; live OS/provider and Windows/Linux acceptance remain required before release. The native feature and release information below applies to the SwiftUI app.
 
 <img src="macOS/Artwork/Chirpberry.png" width="112" alt="Chirpberry's mulberry bird icon" />
 

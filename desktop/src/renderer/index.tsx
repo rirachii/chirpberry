@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookOpen, Check, ChevronDown, Copy, Download, FileText, Folder, Import, Languages, Mic, Pause, Play, Square, Upload, Sparkles, PanelLeftClose, PanelLeftOpen, MoreHorizontal, Pin, Plus, Search, Settings, StickyNote, Trash2, Undo2, X } from 'lucide-react';
+import { BookOpen, CalendarDays, Check, ChevronDown, Copy, Download, FileText, Folder, Import, Languages, MessageCircle, Mic, Pause, Play, Share2, Square, Upload, Sparkles, PanelLeftClose, PanelLeftOpen, MoreHorizontal, Pin, Plus, Search, Settings, StickyNote, Trash2, Undo2, X } from 'lucide-react';
 import type { Meeting, MeetingPatch } from '../shared/meeting';
 import { meetingSchema, serializeMeeting, searchableText, speakerKey, speakerName, timeLabel, timestamp } from '../shared/meeting';
 import type { RuntimeSnapshot, SaveStatus } from '../shared/api';
 import type { CaptureSnapshot } from '../shared/capture';
 import { SettingsPanel } from './settings';
 import { ActionMenu, type MenuAction, type MenuPoint } from './action-menu';
+import { AssistantPanel } from './assistant';
+import { Upcoming } from './upcoming';
+import { ShareDialog } from './share';
 import './style.css';
+import './meeting-tools.css';
 
 type Filter = { kind: 'all' | 'pinned' | 'trash' | 'notebook'; name?: string };
 const api = window.chirpberry;
@@ -21,6 +25,9 @@ function App() {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<'notes' | 'summary'>('notes');
   const [inspector, setInspector] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [upcoming, setUpcoming] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [sidebar, setSidebar] = useState(true);
   const [contextMenu, setContextMenu] = useState<MenuPoint>();
   const [settings, setSettings] = useState(false);
@@ -54,7 +61,7 @@ function App() {
   }, []);
   useEffect(() => {
     const updateCapture = (snapshot: CaptureSnapshot) => { setCapture(snapshot); if (snapshot.message) setMessage(snapshot.message); };
-    const off = [api.onCapture(updateCapture), api.onRuntime(setRuntime), api.onSelect(id => { select(id); setFilter({ kind: 'all' }); setQuery(''); }),
+    const off = [api.onCapture(updateCapture), api.onRuntime(setRuntime), api.onSelect(id => { select(id); setUpcoming(false); setSharing(false); setFilter({ kind: 'all' }); setQuery(''); }),
       api.onMeeting((incoming, fields) => setMeetings(previous => previous.some(meeting => meeting.id === incoming.id) ? previous.map(meeting => meeting.id === incoming.id ?
         { ...meeting, ...Object.fromEntries(fields.map(field => [field, incoming[field]])), updatedAt: incoming.updatedAt } : meeting) : [incoming, ...previous]))];
     void api.runtime().then(value => { setRuntime(value); updateCapture(value.capture); }).catch(error => setMessage(describeError(error)));
@@ -64,7 +71,7 @@ function App() {
   const receive = useCallback((meeting: Meeting | null) => {
     if (!meeting) return;
     setMeetings(previous => [meeting, ...previous.filter(value => value.id !== meeting.id)]); select(meeting.id);
-    setFilter({ kind: 'all' }); setQuery(''); setTab('notes'); setMessage('');
+    setFilter({ kind: 'all' }); setQuery(''); setTab('notes'); setMessage(''); setUpcoming(false); setSharing(false);
   }, []);
   const create = useCallback(async (kind: 'meeting' | 'scratchpad' = 'meeting') => {
     try { const meeting = await api.create(kind); focusNewNote.current = true; receive(meeting); } catch (error) { setMessage(describeError(error)); }
@@ -77,7 +84,7 @@ function App() {
     if (command === 'import') void importDocument();
     if (command === 'search') { setSidebar(true); requestAnimationFrame(() => search.current?.focus()); }
   }), [create, importDocument]);
-  function chooseFilter(next: Filter) { setFilter(next); select(undefined); setContextMenu(undefined); }
+  function chooseFilter(next: Filter) { setFilter(next); select(undefined); setContextMenu(undefined); setUpcoming(false); }
   useEffect(() => { if (focusNewNote.current && current) { editor.current?.focus(); focusNewNote.current = false; } }, [selectedID]);
   function edit(patch: MeetingPatch) {
     if (!current) return;
@@ -125,6 +132,7 @@ function App() {
   return <div className={`app-shell ${sidebar ? '' : 'sidebar-hidden'}`}>
     <aside className="sidebar" aria-label="Notebook navigation" hidden={!sidebar}>
       <div className="brand"><img src="./chirpberry.png" alt="" /><span>Chirpberry</span></div>
+      <button className={`upcoming-nav ${upcoming ? 'selected' : ''}`} aria-pressed={upcoming} onClick={() => { setUpcoming(true); setContextMenu(undefined); }}><CalendarDays size={15} />Upcoming</button>
       <label className="search"><Search size={15} /><input ref={search} aria-label="Search notes" placeholder="Search notes" value={query} onChange={event => setQuery(event.target.value)} />{query && <button className="icon-button" aria-label="Clear search" onClick={() => setQuery('')}><X size={14} /></button>}</label>
       <div className="list-heading">
         <div className="collection-select"><select aria-label="Filter notes" value={filter.kind === 'notebook' ? `notebook:${filter.name}` : filter.kind} onChange={event => {
@@ -137,9 +145,9 @@ function App() {
       </div>
       <div className="meeting-list" aria-label="Notes">
         {query && <p className="search-count" role="status">{visible.length} {visible.length === 1 ? 'result' : 'results'}</p>}
-        {visible.map(meeting => <button key={meeting.id} aria-pressed={meeting.id === selectedID} className={`meeting-row ${meeting.id === selectedID ? 'selected' : ''}`}
-          onClick={() => { select(meeting.id); setTab('notes'); setContextMenu(undefined); }} onContextMenu={event => {
-            event.preventDefault(); select(meeting.id); setTab('notes'); setContextMenu({ x: event.clientX, y: event.clientY, target: event.currentTarget });
+        {visible.map(meeting => <button key={meeting.id} aria-pressed={!upcoming && meeting.id === selectedID} className={`meeting-row ${!upcoming && meeting.id === selectedID ? 'selected' : ''}`}
+          onClick={() => { select(meeting.id); setTab('notes'); setContextMenu(undefined); setUpcoming(false); }} onContextMenu={event => {
+            event.preventDefault(); select(meeting.id); setTab('notes'); setUpcoming(false); setContextMenu({ x: event.clientX, y: event.clientY, target: event.currentTarget });
           }}>
           <span className="meeting-title">{meeting.isPinned && <Pin size={12} />}<span className="truncate">{meeting.title || 'Untitled note'}</span></span>
           <span className="meeting-preview truncate">{meeting.notes.trim().split('\n').find(Boolean) || (meeting.segments.length ? `${meeting.segments.length} transcript segment${meeting.segments.length === 1 ? '' : 's'}` : 'No notes yet')}</span>
@@ -157,22 +165,24 @@ function App() {
         <button className="icon-button sidebar-toggle" aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} title={sidebar ? 'Hide sidebar' : 'Show sidebar'} onClick={() => setSidebar(value => !value)}>{sidebar ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}</button>
         {capturing && <div className="recording-controls" aria-label="Recording controls">
           <span className={`recording-indicator ${capture.state}`} /><span className="recording-state" role="status">{capture.state === 'connecting' ? 'Connecting to Valsea…' : capture.state === 'finishing' ? 'Saving final speech…' : capture.state === 'paused' ? 'Paused' : capture.purpose === 'dictation' ? 'Dictating to clipboard' : 'Recording meeting'}<time>{timeLabel(capture.elapsed)}</time></span>
-          {capture.meetingId !== current?.id && <button className="text-button recording-link" onClick={() => { select(capture.meetingId); setFilter({ kind: 'all' }); setQuery(''); setTab('notes'); }}>Go to recording</button>}
+          {(capture.meetingId !== current?.id || upcoming) && <button className="text-button recording-link" onClick={() => { select(capture.meetingId); setUpcoming(false); setFilter({ kind: 'all' }); setQuery(''); setTab('notes'); }}>Go to recording</button>}
           <div className="capture-actions">{capture.state === 'paused' ? <button className="secondary" onClick={() => void perform(() => api.resumeCapture())}><Play size={14} />Resume</button> : capture.state === 'recording' && <button className="secondary" onClick={() => void perform(() => api.pauseCapture())}><Pause size={14} />Pause</button>}
             <button className="primary" disabled={capture.state === 'finishing'} onClick={() => void perform(() => api.stopCapture())}><Square size={12} />{capture.state === 'connecting' ? 'Cancel' : 'Stop'}</button></div>
         </div>}
         <div className="toolbar-actions">
           {!sidebar && <button className="icon-button" aria-label="Settings" title="Settings" onClick={() => setSettings(true)}><Settings size={17} /></button>}
-          {current && <>
-            <button className={`text-button transcript-toggle ${inspector ? 'active' : ''}`} aria-label={inspector ? 'Hide transcript' : 'Show transcript'} aria-pressed={inspector} onClick={() => setInspector(value => !value)}><Languages size={16} /><span>Transcript</span>{current.segments.length > 0 && <span className="transcript-count">{current.segments.length}</span>}</button>
+          {current && !upcoming && <>
+            <button className={`text-button assistant-toggle ${assistantOpen ? 'active' : ''}`} aria-label={assistantOpen ? 'Hide meeting assistant' : 'Ask meeting'} aria-pressed={assistantOpen} onClick={() => { setAssistantOpen(value => !value); setInspector(false); }}><MessageCircle size={16} /><span>Ask</span></button>
+            <button className={`text-button transcript-toggle ${inspector ? 'active' : ''}`} aria-label={inspector ? 'Hide transcript' : 'Show transcript'} aria-pressed={inspector} onClick={() => { setInspector(value => !value); setAssistantOpen(false); }}><Languages size={16} /><span>Transcript</span>{current.segments.length > 0 && <span className="transcript-count">{current.segments.length}</span>}</button>
+            {!current.isTrashed && <button className="icon-button" title="Share notes" aria-label="Share notes" onClick={() => setSharing(true)}><Share2 size={17} /></button>}
             <ActionMenu key={current.id} label="Note actions" items={noteActions} point={contextMenu} onOpen={() => setContextMenu(undefined)}><MoreHorizontal size={20} /></ActionMenu>
             {!capturing && !current.isTrashed && <button className="primary record-button" disabled={busy} onClick={() => void cloud(() => api.startCapture(current.id, 'meeting'))}><Mic size={15} />Record meeting</button>}
           </>}
         </div>
       </header>
       {message && <div className="notice" role={save.state === 'error' ? 'alert' : 'status'}><span>{message}</span><button className="icon-button" aria-label="Dismiss message" onClick={() => setMessage('')}><X size={17} /></button></div>}
-      {current ? <>
-        <div className={`document-layout ${inspector ? '' : 'without-transcript'}`}>
+      {upcoming ? <Upcoming runtime={runtime} onOpen={receive} /> : current ? <>
+        <div className={`document-layout ${inspector || assistantOpen ? '' : 'without-transcript'}`}>
           <section className="document" aria-label="Meeting editor">
             {current.isTrashed && <div className="trash-notice"><Trash2 size={16} /><span>This note is in Trash.</span><button onClick={() => edit({ isTrashed: false })}>Restore</button></div>}
             <div className="document-heading"><div className="date-line">{current.entryKind === 'scratchpad' ? 'Scratchpad' : 'Meeting'}<span>·</span>{new Date(current.createdAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}<span className={`save-status ${save.state}`} role="status" title={save.state === 'saved' ? 'Saved on this device' : undefined}>{save.state === 'saved' ? <><Check size={12} />Saved</> : save.state === 'saving' ? 'Saving…' : 'Not saved'}</span></div>
@@ -196,6 +206,7 @@ function App() {
             </div>
             {current.actions.length > 0 && <section className="actions" aria-label="Action items"><h2>Action items</h2>{current.actions.map(action => <label className="action" key={action.id}><input type="checkbox" checked={action.completed} onChange={event => edit({ actions: current.actions.map(item => item.id === action.id ? { ...item, completed: event.target.checked } : item) })} /><span>{action.description}{(action.owner || action.deadline) && <small>{[action.owner, action.deadline].filter(Boolean).join(' · ')}</small>}</span></label>)}</section>}
           </section>
+          {assistantOpen && <AssistantPanel key={current.id} meetingId={current.id} runtime={runtime} onSettings={() => setSettings(true)} onClose={() => setAssistantOpen(false)} />}
           {inspector && <aside className="transcript" aria-label="Transcript"><header><h2>Transcript</h2><button className="icon-button" aria-label="Close transcript" onClick={() => setInspector(false)}><X size={16} /></button></header>
             {current.segments.length ? <div className="transcript-segments">{current.segments.map(segment => <article className="segment" key={segment.id}>
               <div className="segment-meta"><span>{segment.channel}</span><time>{timeLabel(segment.timestamp)}</time></div>
@@ -212,8 +223,9 @@ function App() {
       </div>}
     </main>
     <dialog className="settings-dialog" ref={dialog} aria-labelledby="settings-title" onClose={() => setSettings(false)}><div className="dialog-header"><h2 id="settings-title">Chirpberry Settings</h2><button className="icon-button" aria-label="Close settings" onClick={() => setSettings(false)}><X size={20} /></button></div>
-      {settings && runtime ? <SettingsPanel runtime={{ ...runtime, capture }} onChange={setRuntime} onCreated={meeting => { receive(meeting); setSettings(false); }} /> : <p>Loading settings…</p>}
+      {settings && runtime ? <SettingsPanel runtime={{ ...runtime, capture }} onChange={setRuntime} onCreated={meeting => { receive(meeting); setSettings(false); }} onUpcoming={() => { setSettings(false); setUpcoming(true); }} /> : <p>Loading settings…</p>}
     </dialog>
+    {sharing && current && <ShareDialog key={current.id} meetingId={current.id} onClose={() => setSharing(false)} />}
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<App />);

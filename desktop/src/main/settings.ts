@@ -25,14 +25,16 @@ export class SettingsStore {
 }
 
 export class Credentials {
-  constructor(private directory: string, private native?: NativeBridge, private disabled = false) {}
+  constructor(private directory: string, private native?: NativeBridge, private disabled = false, private kind: 'valsea' | 'assistant' = 'valsea') {}
+  private get command() { return this.kind === 'assistant' ? 'assistant-key' : 'credential'; }
+  private get filename() { return this.kind === 'assistant' ? 'assistant-credential.enc' : 'credential.enc'; }
   available() { return !this.disabled && (!!this.native || safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text')); }
   private requireProtection() { if (!this.available()) throw new Error('Protected credential storage is unavailable. Unlock or configure your system keyring, then restart Chirpberry.'); }
   async read(): Promise<string> {
     this.requireProtection();
-    if (this.native) return this.native.request('credential.read');
+    if (this.native) return this.native.request(`${this.command}.read`);
     try {
-      const filename = path.join(this.directory, 'credential.enc');
+      const filename = path.join(this.directory, this.filename);
       if ((await stat(filename)).size > 32768) throw new Error();
       return safeStorage.decryptString(Buffer.from(await readFile(filename, 'utf8'), 'base64'));
     } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ''; throw new Error('The protected API key could not be unlocked. Save it again in Settings.'); }
@@ -42,8 +44,8 @@ export class Credentials {
     this.requireProtection();
     if (typeof input !== 'string' || input.length > 4096 || /[\r\n]/.test(input)) throw new Error('Enter a valid API key.');
     const key = input.trim();
-    if (this.native) await this.native.request('credential.save', { key });
-    else await atomicWrite(path.join(this.directory, 'credential.enc'), safeStorage.encryptString(key).toString('base64'));
+    if (this.native) await this.native.request(`${this.command}.save`, { key });
+    else await atomicWrite(path.join(this.directory, this.filename), safeStorage.encryptString(key).toString('base64'));
     return !!key;
   }
 }

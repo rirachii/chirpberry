@@ -13,9 +13,11 @@ The Electron candidate exposes recording, provider summaries, and the companion 
 
 ## Electron notebook simplicity
 
-The default window has a compact recent-notes sidebar and an opaque writing surface. The sidebar holds the small brand, Search, one collection selector (All notes, Pinned, Notebooks, Trash), New note, Library, and Settings. It can collapse for focused writing; the native Search notes command reveals it and focuses Search. New note immediately focuses the editor.
+The default window has a compact recent-notes sidebar and an opaque writing surface. The sidebar holds the small brand, Search, Upcoming, one collection selector (All notes, Pinned, Notebooks, Trash), New note, Library, and Settings. It can collapse for focused writing; the native Search notes command reveals it and focuses Search. New note immediately focuses the editor.
 
 Use one toolbar. Record meeting is its primary idle action. A labeled Transcript toggle opens an optional inspector; closing it never hides capture state. Active capture replaces the idle action with the recording state, elapsed time, Pause/Resume, and Stop/Cancel. Keep these controls available even when the selected collection has no note.
+
+Ask and Transcript share one optional inspector space. At compact widths it sits below the editor; capture controls remain reachable. Ask offers catch-up, questions, and editable response drafts with reviewable source excerpts and a separate Stop answer action. Share opens a modal showing the exact selected snapshot; personal notes and transcript are opt-in, and chat is excluded. Upcoming shows a quiet chronological agenda with separate Open note and Join actions. Neither starts capture. See [meeting assistant](docs/meeting-assistant.md) for processing and connection boundaries.
 
 The Note actions overflow and note-row context menu expose clipboard dictation, pinning, notebook movement, export/copy, and reversible Trash. Use native top-layer popovers with keyboard navigation, Escape, outside-click dismissal, and visible focus. Library groups Scratchpad creation and note/audio imports. Details holds notebook, summary template, and vocabulary. Original notes and Summary remain independent; generation is unavailable until notes or transcript exist. Successful autosave is quiet; failures remain visible.
 

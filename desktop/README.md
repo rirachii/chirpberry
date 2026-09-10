@@ -23,7 +23,7 @@ Install the Mac candidate into `/Applications/Chirpberry Electron Candidate/Chir
 
 - Meeting notes and Scratchpads, independent original and summary notes, search, notebooks, pinning, reversible Trash, speaker naming, and native text editing/Undo.
 - Atomic, serialized document saves; disk failures preserve in-memory edits for export. JSON, Markdown, and text import creates a new identity and leaves originals untouched.
-- Explicit recording/disclosure controls; microphone and optional system audio, live source/translation segments, final-only persistence, pause/resume, bounded provider queues, and stop on error, notebook close, or exit.
+- Explicit recording/disclosure controls; microphone and optional system audio, live source/translation segments, final-only persistence, pause/resume, bounded provider queues, and stop on error, either notebook or companion closure, or exit. A full Stop upgrades an in-flight Pause; closure or cancellation disables clipboard delivery.
 - Valsea WebSocket authentication in headers. Renderer processes cannot read credentials or call provider endpoints. Mac uses Keychain; Windows uses Electron safeStorage/DPAPI; Linux refuses plaintext `basic_text` storage and needs an unlocked system keyring.
 - Microphone dictation appends final original-language text to the selected note/Scratchpad, then copies only that session's new speech on successful explicit Stop. Pause, cancellation, failure, and empty speech leave the clipboard unchanged.
 - A floating bar expands from 52×10 to 200×60 points. Entry opens immediately; exit waits 120 ms; active capture keeps the bar open. Settings chooses a screen edge.
@@ -46,7 +46,7 @@ Mac keys use the existing Chirpberry Valsea Keychain item. The bundled **Chirpbe
 
 - `shared/`: version-1 Swift-compatible document schemas, capture/settings schemas, export formatting, and continuous PCM conversion.
 - `main/store.ts`, `recording.ts`, `realtime.ts`, `rest.ts`: persistence, one capture owner, validated/bounded Valsea streaming, and explicit provider requests.
-- `main/native.ts`, `native/Bridge.swift`: private bounded stdio bridge reusing actual native capture, PCM, Keychain, and Fn source. Parent exit stops the helper; termination bounds hung requests.
+- `main/native.ts`, `native/Bridge.swift`: private bounded stdio bridge reusing actual native capture, PCM, Keychain, and Fn source. Shutdown and cancellation retain and await helper teardown, escalating to termination after the grace period if the helper hangs. Stopping an already closed capture helper never starts a replacement.
 - `capture/`, `main/browser-audio.ts`: isolated per-recording renderer, worklet, microphone/Windows loopback, sender-validated PCM, and narrow permissions. It has no key or provider access.
 - `main/runtime.ts`, `companion.ts`, `preload.ts`: OS integration orchestration, companion, and role-checked APIs. The companion cannot load/export the notebook store.
 - `renderer/`: sandboxed React notebook with a restrictive CSP and no Node or outbound network access.

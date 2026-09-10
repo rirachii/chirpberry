@@ -16,11 +16,11 @@ import { ValseaREST } from './rest';
 import { Companion } from './companion';
 
 type Handler = (name: string, callback: (...args: any[]) => unknown) => void;
-export type RuntimeAdapters = { credentials: Pick<Credentials, 'available' | 'read' | 'save' | 'status'>;
+export type RuntimeAdapters = { native?: NativeBridge; credentials: Pick<Credentials, 'available' | 'read' | 'save' | 'status'>;
   createAudio(): AudioInput; createStream(options: RealtimeOptions): SpeechStream;
   service(key: string): Pick<ValseaREST, 'format' | 'transcribe'> };
 export class DesktopRuntime {
-  readonly companion = new Companion();
+  readonly companion = new Companion(() => this.closeCapture());
   readonly recording: RecordingController;
   readonly settings: SettingsStore;
   private native?: NativeBridge;
@@ -35,7 +35,8 @@ export class DesktopRuntime {
   private nativePath = app.isPackaged ? path.join(process.resourcesPath, 'Chirpberry Capture.app/Contents/MacOS/chirpberry-capture') : path.resolve(__dirname, '../native-build/Chirpberry Capture.app/Contents/MacOS/chirpberry-capture');
   constructor(private store: MeetingStore, profile: string, private notebook: () => BrowserWindow | undefined, private adapters?: RuntimeAdapters) {
     const disabled = process.env.CHIRPBERRY_DISABLE_OS_INTEGRATIONS === '1';
-    if (process.platform === 'darwin' && !disabled) this.native = new NativeBridge(this.nativePath);
+    if (adapters) this.native = adapters.native;
+    else if (process.platform === 'darwin' && !disabled) this.native = new NativeBridge(this.nativePath);
     this.settings = new SettingsStore(profile);
     this.credentials = adapters?.credentials ?? new Credentials(profile, this.native, disabled);
     this.capabilities = { platform: process.platform, microphone: !disabled, systemAudio: !disabled && ['darwin', 'win32'].includes(process.platform),
@@ -49,7 +50,7 @@ export class DesktopRuntime {
   async initialize() {
     await this.settings.load();
     if (this.native) {
-      try { await access(this.nativePath); await this.native.request('ping', {}, 10000); }
+      try { await access(this.native.executable); await this.native.request('ping', {}, 10000); }
       catch { this.capabilities.microphone = false; this.capabilities.systemAudio = false; this.capabilities.calendar = false;
         this.capabilities.problem = 'The Mac capture helper is unavailable. Rebuild or reinstall Chirpberry for macOS 26.'; }
       this.native.on('shortcut', event => { if (event.action === 1) void this.shortcut('dictation'); if (event.action === 2) void this.shortcut('meeting'); if (event.action === 3) void this.shortcut('scratchpad'); });
@@ -181,5 +182,5 @@ export class DesktopRuntime {
     if (capture.meetingId === id && (patch.isTrashed === true || capture.purpose === 'dictation' && 'notes' in patch)) throw new Error('Finish recording before changing or moving this note.');
   }
   async closeCapture() { for (const request of this.requests) request.abort(); await this.recording.stop({ deliver: false }); }
-  async shutdown() { this.stopped = true; await this.closeCapture(); globalShortcut.unregisterAll(); this.companion.destroy(); this.native?.removeAllListeners(); this.native?.destroy(); }
+  async shutdown() { this.stopped = true; await this.closeCapture(); globalShortcut.unregisterAll(); this.companion.destroy(); this.native?.removeAllListeners(); await this.native?.destroy(); }
 }

@@ -9,6 +9,7 @@ export class Companion {
   private expanded = false;
   private leaveTimer?: NodeJS.Timeout;
   private settings?: AppSettings;
+  constructor(private stopCapture: () => Promise<void>) {}
   async configure(settings: AppSettings) {
     this.settings = settings;
     if (!settings.barVisible) {
@@ -24,8 +25,19 @@ export class Companion {
       window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
       window.webContents.on('will-navigate', event => event.preventDefault());
       window.webContents.on('will-attach-webview', event => event.preventDefault());
-      window.on('closed', () => { if (this.window === window) this.window = undefined; });
+      let closing: Promise<void> | undefined;
+      const stopCapture = () => closing ??= this.stopCapture();
+      window.on('close', event => {
+        if (!this.active) return;
+        event.preventDefault();
+        void stopCapture().then(() => { if (!window.isDestroyed()) window.destroy(); }).catch(() => {});
+      });
+      window.on('closed', () => {
+        if (this.window === window) this.window = undefined;
+        if (this.active) void stopCapture().catch(() => {});
+      });
       await window.loadURL('chirpberry://app/companion.html');
+      if (window.isDestroyed()) return;
       this.position(); window.showInactive();
     } else this.position();
   }

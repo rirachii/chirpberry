@@ -11,7 +11,7 @@ export interface AudioInput {
 }
 type Job = { options: CaptureOptions; phase: string; abort: AbortController; streams: Map<string, SpeechStream>;
   audio?: AudioInput; reducer: TranscriptReducer; finals: Promise<void>; queuedFinals: number; text: string;
-  elapsed: number; phaseOffset: number; startedAt?: number; deliveryAllowed: boolean; failure?: string; stopping?: Promise<void> };
+  elapsed: number; phaseOffset: number; startedAt?: number; deliveryAllowed: boolean; pauseAfterStop: boolean; failure?: string; stopping?: Promise<void> };
 type Dependencies = { store: MeetingStore; getKey(): Promise<string>; createAudio(): AudioInput;
   createStream(options: RealtimeOptions): SpeechStream; copy(text: string): void;
   changed(snapshot: CaptureSnapshot): void; meetingChanged?(meeting: Meeting, fields: (keyof Meeting)[]): void };
@@ -34,7 +34,7 @@ export class RecordingController {
     const meeting = this.dependencies.store.get(options.meetingId);
     if (meeting.isTrashed) throw new Error('Restore this note before recording.');
     const job: Job = { options, phase: '', abort: new AbortController(), streams: new Map(), reducer: new TranscriptReducer(),
-      finals: Promise.resolve(), queuedFinals: 0, text: '', elapsed: meeting.duration, phaseOffset: meeting.duration, deliveryAllowed: true };
+      finals: Promise.resolve(), queuedFinals: 0, text: '', elapsed: meeting.duration, phaseOffset: meeting.duration, deliveryAllowed: true, pauseAfterStop: false };
     this.job = job;
     await this.run(job);
   }
@@ -109,13 +109,16 @@ export class RecordingController {
   stop(options: { pause?: boolean; deliver?: boolean } = {}): Promise<void> {
     const job = this.job; if (!job) return Promise.resolve();
     if (options.deliver === false) job.deliveryAllowed = false;
-    if (job.stopping) return job.stopping;
+    if (job.stopping) {
+      if (!options.pause || options.deliver === false) job.pauseAfterStop = false;
+      return job.stopping;
+    }
+    job.pauseAfterStop = options.pause === true && options.deliver !== false;
     const connecting = this.value.state === 'connecting';
     this.value.state = 'finishing'; clearInterval(this.timer); this.timer = undefined;
     job.elapsed = this.elapsed(job); job.startedAt = undefined; this.value.elapsed = job.elapsed;
-    job.abort.abort(); this.publish();
-    if (connecting) { job.deliveryAllowed = false; for (const stream of job.streams.values()) stream.close(); }
-    job.stopping = (async () => {
+    if (connecting) job.deliveryAllowed = false;
+    job.stopping = Promise.resolve().then(async () => {
       try { await job.audio?.stop(); } catch { job.failure ??= 'Audio capture did not stop cleanly. The clipboard is unchanged.'; }
       job.audio = undefined;
       if (!connecting && !job.failure) {
@@ -130,8 +133,8 @@ export class RecordingController {
         this.dependencies.meetingChanged?.(this.dependencies.store.get(job.options.meetingId), ['duration']);
       } catch { job.failure ??= 'Your latest transcript could not be saved. Keep the app open and export a copy.'; }
       this.value.partials = {}; this.value.levels = {};
-      if (options.pause && !job.failure && !connecting) {
-        this.value.state = 'paused'; this.publish(); job.stopping = undefined; return;
+      if (job.pauseAfterStop && !job.failure && !connecting) {
+        this.value.state = 'paused'; job.stopping = undefined; this.publish(); return;
       }
       let message = job.failure;
       if (job.options.purpose === 'dictation' && job.deliveryAllowed && !job.failure) {
@@ -145,7 +148,9 @@ export class RecordingController {
       if (connecting && !message) message = 'Recording cancelled.';
       this.job = undefined;
       this.value = { state: 'idle', elapsed: job.elapsed, partials: {}, levels: {}, ...(message ? { message } : {}) }; this.publish();
-    })();
+    });
+    job.abort.abort(); this.publish();
+    if (connecting) { for (const stream of job.streams.values()) stream.close(); }
     return job.stopping;
   }
   private publish() { this.dependencies.changed(this.snapshot()); }

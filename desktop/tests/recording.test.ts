@@ -85,3 +85,59 @@ test('pause drains finals, resume uses a new speaker scope, and clipboard failur
     assert.notEqual(segments[0].speakerScope, segments[1].speakerScope);
   } finally { await controller.stop({ deliver: false }); await rm(directory, { recursive: true, force: true }); }
 });
+
+function gate() {
+  let release!: () => void;
+  const promise = new Promise<void>(resolve => { release = resolve; });
+  return { promise, release };
+}
+
+for (const during of ['provider drain', 'persistence'] as const) {
+  for (const outcome of ['deliver', 'cancel', 'provider failure', 'save failure'] as const) {
+    test(`a full Stop during Pause ${during} finishes once with ${outcome}`, async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), 'chirpberry-stop-race-'));
+      const { atomicWrite } = await import('../src/main/store');
+      const writing = gate(), persist = gate(), draining = gate(), final = gate();
+      let blockWrites = false;
+      const store = new MeetingStore(directory, () => {}, async (file, contents) => {
+        if (blockWrites) {
+          writing.release(); await persist.promise;
+          if (outcome === 'save failure') throw new Error('Synthetic full disk');
+        }
+        await atomicWrite(file, contents);
+      });
+      await store.load();
+      const note = await store.create('scratchpad'); store.update(note.id, { notes: 'Original notes' }); await store.flush();
+      const copied: string[] = []; let stops = 0, finishes = 0;
+      const controller = new RecordingController({ store, getKey: async () => 'fixture', changed: () => {}, copy: text => copied.push(text),
+        createAudio: () => ({ start: async () => {}, stop: async () => { stops++; } }),
+        createStream: options => ({ connect: async () => {}, close: () => {}, sendAudio: () => true, finish: async () => {
+          finishes++; draining.release(); await final.promise;
+          options.onEvent({ type: 'transcript.final', text: 'Late final words.', event_id: 'final' });
+          if (outcome === 'provider failure') throw new Error('Synthetic finalization failure');
+        } }) });
+      try {
+        await controller.start({ meetingId: note.id, purpose: 'dictation', includeSystemAudio: false, language: 'auto', diarize: false, disclosureAccepted: true });
+        blockWrites = true;
+        const pause = controller.stop({ pause: true });
+        await draining.promise;
+        if (during === 'persistence') { final.release(); await writing.promise; }
+        const finish = controller.stop();
+        assert.equal(finish, pause);
+        assert.equal(controller.stop({ pause: true }), finish);
+        if (outcome === 'cancel') assert.equal(controller.stop({ deliver: false }), finish);
+        assert.equal(controller.snapshot().state, 'finishing');
+        assert.deepEqual(copied, []);
+        final.release(); await writing.promise;
+        assert.deepEqual(copied, []);
+        persist.release(); await Promise.all([pause, finish]);
+        assert.equal(controller.snapshot().state, 'idle');
+        assert.equal(stops, 1); assert.equal(finishes, 1);
+        assert.deepEqual(copied, outcome === 'deliver' ? ['Late final words.'] : []);
+        await controller.stop(); assert.equal(copied.length, outcome === 'deliver' ? 1 : 0);
+        const saved = JSON.parse(await readFile(path.join(directory, `${note.id}.json`), 'utf8'));
+        assert.equal(saved.notes, outcome === 'save failure' ? 'Original notes' : 'Original notes\nLate final words.');
+      } finally { final.release(); persist.release(); await controller.stop({ deliver: false }); await rm(directory, { recursive: true, force: true }); }
+    });
+  }
+}

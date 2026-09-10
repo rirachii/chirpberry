@@ -1,0 +1,59 @@
+import { test, expect, _electron as electron } from '@playwright/test';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
+import AxeBuilder from '@axe-core/playwright';
+test('synthetic Electron recording: disclosure, partials, pause, final clipboard, summary, audio import and companion', async ({}, info) => {
+  test.skip(!!process.env.CHIRPBERRY_EXECUTABLE, 'Synthetic adapters are never packaged in a release app.');
+  const root = await mkdtemp(path.join(tmpdir(), 'chirpberry-capture-ui-'));
+  const application = await electron.launch({ args: [path.resolve('test-build')], env: { ...process.env, CHIRPBERRY_PROFILE_DIR: path.join(root, 'profile'), CHIRPBERRY_DOCUMENTS_DIR: path.join(root, 'documents'), CHIRPBERRY_DISABLE_OS_INTEGRATIONS: '1' } });
+  let originalClipboard = '';
+  try {
+    originalClipboard = await application.evaluate(({ clipboard }) => clipboard.readText());
+    const page = await application.firstWindow(); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    await page.getByRole('button', { name: 'New scratchpad' }).click();
+    await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original thought.');
+    await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.getByRole('checkbox', { name: /I understand and agree/ }).check();
+    await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+    await expect(page.getByText('Settings saved.', { exact: true })).toBeVisible();
+    expect((await new AxeBuilder({ page }).setLegacyMode().analyze()).violations).toEqual([]);
+    await page.getByRole('button', { name: 'Close settings' }).click();
+    await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+    await expect(page.getByText('Synthetic live draft', { exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toHaveValue('Keep my original thought.');
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+    expect(await application.evaluate(({ clipboard }) => clipboard.readText())).toBe(originalClipboard);
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await expect(page.getByText('Copied to clipboard. A copy is saved in Scratchpad.', { exact: true })).toBeVisible();
+    expect(await application.evaluate(({ clipboard }) => clipboard.readText())).toBe('Synthetic final speech.\nSynthetic final speech.');
+    await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toHaveValue('Keep my original thought.\nSynthetic final speech.\nSynthetic final speech.');
+    await page.getByRole('tab', { name: 'Summary', exact: true }).click();
+    await page.getByRole('button', { name: 'Generate summary', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Summary', exact: true })).toHaveValue('Synthetic summary.');
+    const audio = path.join(root, 'synthetic.wav'); await writeFile(audio, Buffer.alloc(44));
+    await application.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, audio);
+    await page.getByRole('button', { name: 'Transcribe audio file', exact: true }).click();
+    await expect(page.getByText('Synthetic imported speech.', { exact: true })).toBeVisible();
+    const companion = application.windows().find(window => window.url().endsWith('/companion.html'))!;
+    await expect.poll(() => companion.evaluate(() => window.innerWidth)).toBe(52);
+    await companion.evaluate(() => window.chirpberry.companion('hover'));
+    await expect.poll(() => companion.evaluate(() => window.innerWidth)).toBe(200);
+    await companion.screenshot({ path: info.outputPath('companion-200.png') });
+    // This untrusted role can operate capture, but cannot read/export arbitrary notebook documents.
+    await expect(companion.evaluate(() => window.chirpberry.load())).rejects.toThrow(/Unauthorized/);
+    await companion.evaluate(() => window.chirpberry.companion('leave'));
+    await expect.poll(() => companion.evaluate(() => window.innerWidth)).toBe(52);
+    await page.screenshot({ path: info.outputPath('recording-notebook.png') });
+    const files = await readdir(path.join(root, 'documents'));
+    const contents = await Promise.all(files.filter(file => file.endsWith('.json')).map(file => readFile(path.join(root, 'documents', file), 'utf8')));
+    expect(contents.join('')).not.toContain('Synthetic live draft'); expect(contents.join('')).not.toContain('synthetic-key');
+    expect(errors).toEqual([]);
+  } finally {
+    await application.evaluate(({ clipboard }, text) => clipboard.writeText(text), originalClipboard).catch(() => {});
+    await application.close(); await rm(root, { recursive: true, force: true });
+  }
+});

@@ -34,6 +34,7 @@ struct RecordingSetupView: View {
 
 struct SettingsView: View {
     @ObservedObject var model: NotebookModel
+    @ObservedObject var desktop: DesktopCompanion
     @Environment(\.dismiss) var dismiss
     @State private var key = ""
     @State private var status = ""
@@ -42,10 +43,36 @@ struct SettingsView: View {
     @AppStorage("sourceLanguage") private var source = "auto"
     @AppStorage("languageHints") private var hints = ""
     @AppStorage("vocabulary") private var vocabulary = ""
+    @AppStorage("dictateIntoActiveApp") private var dictateIntoActiveApp = true
     var body: some View {
         VStack(spacing: 0) {
             HStack { Text("Settings").font(.title2.weight(.semibold)); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }.padding(24)
             Form {
+                Section("Quick capture") {
+                    Picker("Dock position", selection: Binding(get: { desktop.dock }, set: { desktop.setDock($0) })) {
+                        ForEach(BarDock.allCases, id: \.self) { edge in Text(edge.title).tag(edge) }
+                    }
+                    Text("The bar stays centered on this screen edge. Hover over its handle to expand it. Its position is fixed; it cannot be dragged.").font(.caption).foregroundStyle(.secondary)
+                    Picker("Dictation key", selection: Binding(get: { desktop.dictationShortcut }, set: { desktop.setDictationShortcut($0) })) {
+                        ForEach(DictationShortcut.allCases, id: \.self) { shortcut in Text(shortcut.title).tag(shortcut) }
+                    }.disabled(model.active)
+                    Text(desktop.dictationShortcut == .fn
+                         ? "Tap Fn / Globe once to start microphone dictation, then tap again to finish and copy the final text. Fn combinations keep their normal behavior. Tab keeps its normal navigation behavior."
+                         : desktop.dictationShortcut == .tab
+                         ? "Press Tab once to dictate, and again to finish. While Chirpberry is running, Tab is used for dictation instead of moving between fields."
+                         : "Press Control–Option–D once to dictate, and again to finish. Tab keeps its normal navigation behavior.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let problem = desktop.shortcutProblem { Text(problem).font(.caption).foregroundStyle(.secondary) }
+                    if desktop.dictationShortcut != .fn {
+                        Toggle("Insert dictation into the active app", isOn: $dictateIntoActiveApp)
+                    }
+                    Text(desktop.dictationShortcut == .fn
+                         ? "Fn mode copies to the clipboard and saves a Scratchpad copy. It never inserts text into another app. Accessibility access enables the Fn shortcut while other apps are active."
+                         : "Uses Accessibility access for supported text fields. Every dictation is also saved in Scratchpad; unsupported fields use its Copy button.").font(.caption).foregroundStyle(.secondary)
+                    Button("Enable Accessibility…") { DictationDestination.requestPermission() }
+                    Button("Show dictation disclosure next time") { UserDefaults.standard.set(false, forKey: "dictationDisclosureAccepted") }
+                    Text("Global shortcuts: ⌃⌥D Dictate · ⌃⌥M New meeting · ⌃⌥S Scratchpad. Control–Option–D also works as a fallback for Fn. Show or hide the bar from the Quick capture menu.").font(.caption).foregroundStyle(.secondary)
+                }
                 Section("Valsea") {
                     SecureField("API key", text: $key).textFieldStyle(.roundedBorder)
                     HStack {

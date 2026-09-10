@@ -1,11 +1,24 @@
 # Architecture
 
+## Desktop direction
+
+Electron is the approved shared desktop framework. The React/TypeScript implementation candidate is in `desktop/`; the existing SwiftUI implementation remains available during migration.
+Electron provides local document editing, search, organization, transcript inspection, import/export, recording, dictation, and Valsea summaries. A single main-process controller owns capture from every UI and shortcut, with per-phase streams and final-only persistence. Mac capture/Keychain/Fn reuse native code through a bounded private stdio helper; Windows/Linux audio uses an isolated capture renderer and worklet. Provider networking and credentials stay in main. See `desktop/README.md` for capability limits and verification.
+Electron's sandboxed renderer loads bundled code through a restricted custom protocol. Validated preload methods route document operations to the main process; no raw filesystem, shell, or Electron API is exposed to the renderer.
+The Electron candidate uses `Chirpberry Desktop/Meetings` under the OS application-data directory. Import creates a new document identity and leaves the source file untouched. It never automatically opens or migrates the native app's store.
+The version-1 JSON format stays compatible with the Swift model, including whole-second ISO8601 dates, final segments, speaker scope, optional Scratchpad identity, and separate personal/generated notes. Unsupported fields or schema versions are rejected to avoid silently discarding data.
+See [desktop development](../desktop/README.md) and the [framework decision](desktop-framework-evaluation.md).
+
 ## Native application
 
 The SwiftUI application targets macOS 26 and Apple Silicon.
 XcodeGen creates the ignored Xcode project from macOS/project.yml.
 ChirpberryCore is a dependency-free Swift package containing document models, storage, transcript reduction, export, search, structured-summary parsing, and the Valsea REST client.
 The app layer owns Keychain, audio capture, WebSocket lifecycle, EventKit, Foundation Models, and views.
+`DesktopCompanion` owns the floating NSPanel, global shortcuts, and explicit dictation destination.
+Scratchpad uses the same NotebookModel and atomic meeting store; capture remains a single shared lifecycle.
+Dictation forces microphone-only source transcription and appends final speech to an ordinary scratchpad document.
+See [desktop companion](desktop-companion.md) for window lifecycle, external insertion, and compatibility contracts.
 
 ## Data and network boundaries
 

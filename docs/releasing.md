@@ -4,7 +4,15 @@ The canonical source repository is `rirachii/chirpberry`.
 Homebrew publication belongs in `rirachii/homebrew-tap`, with a new `Casks/chirpberry.rb`.
 Keep Converty and other casks unchanged.
 
-## Prepare
+## Electron candidate
+
+Electron 0.2.0 packaging is separate from the native 0.1.0 release script below. Run `npm run package:installers --prefix desktop` for local unpublished candidates. From a clean reviewed source commit, `npm run release:prepare --prefix desktop` runs verification and installer packaging, mounts the Mac DMG read-only to compare its app payload, verifies signatures, and emits an exact-commit source ZIP, `release.json`, and `SHA256SUMS.txt`. It refuses dirty source or existing release output. Never substitute a dirty candidate for those exact-source artifacts.
+
+Mac artifacts target Apple Silicon/macOS 26 and are ad-hoc signed, unnotarized. Windows NSIS candidates are unsigned; Linux AppImage capture is microphone-only. `desktop/INSTALL.txt` and the DMG title disclose the Mac status. Developer ID/notarization and Windows certificate setup require their actual credentials; no signing identity is fabricated or selected from an unrelated Apple Development certificate.
+
+The desktop workflow runs notebook/fixture checks and packages platform candidates without publishing them. Real OS permissions, physical Fn, provider success, and installation remain manual gates. Only publish the verified artifacts after `docs/verification.md` has recorded those results. Update the website and Homebrew to the actual public release URLs/checksums after publication, then verify downloads. Do not enable links to unpublished candidate assets.
+
+## Native release preparation
 
 Complete `docs/verification.md`, including an actual unlocked-Mac session and live Valsea results.
 Run `scripts/verify.sh`, the website browser suite, and the no-mistakes pipeline on the feature branch.

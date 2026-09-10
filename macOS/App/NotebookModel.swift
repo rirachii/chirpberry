@@ -4,6 +4,7 @@ import EventKit
 import ChirpberryCore
 
 enum RecordingState: String { case idle, connecting, recording, paused, finishing }
+enum CapturePurpose { case meeting, dictation }
 
 @MainActor final class NotebookModel: ObservableObject {
     @Published var meetings: [Meeting] = []
@@ -25,6 +26,14 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     @Published var showUpcoming = false
     @Published var showImporter = false
     @Published var exportKind: String?
+    @Published var capturePurpose: CapturePurpose = .meeting
+    @Published var scratchpadID: UUID?
+    @Published var showDictationSetup = false
+    @Published var calendarLoading = false
+    var onDictationFinished: ((UUID, String, Bool) -> Void)?
+    private var dictationText = ""
+    private var suppressDictationDelivery = false
+    private var saveFailures: Set<UUID> = []
 
     private let store: MeetingStore
     private let calendar = EKEventStore()
@@ -37,10 +46,10 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     private var ticker: Task<Void, Never>?
     private var sessionToken = UUID()
 
-    init() {
+    init(directory: URL? = nil) {
         // UI acceptance runs use an isolated document directory without touching the user's notes.
         let testPath = ProcessInfo.processInfo.environment["CHIRPBERRY_DOCUMENTS_DIR"]
-        store = MeetingStore(directory: testPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? MeetingStore.defaultDirectory)
+        store = MeetingStore(directory: directory ?? testPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? MeetingStore.defaultDirectory)
         do {
             let loaded = try store.load(); meetings = loaded.meetings; selectedID = meetings.first(where: { !$0.isTrashed })?.id
             if !loaded.unreadable.isEmpty { message = "\(loaded.unreadable.count) meeting file(s) could not be opened. They have been preserved in the storage folder." }
@@ -57,6 +66,23 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
     }
     var active: Bool { recordingState != .idle }
     var storageURL: URL { store.directory }
+    var scratchpads: [Meeting] { meetings.filter { $0.isScratchpad && !$0.isTrashed }.sorted { $0.updatedAt > $1.updatedAt } }
+
+    @discardableResult func createScratchpad() -> UUID {
+        var note = Meeting(title: "Untitled note")
+        note.entryKind = "scratchpad"; note.notebook = "Scratchpad"
+        meetings.insert(note, at: 0); scratchpadID = note.id
+        persist(note)
+        return note.id
+    }
+    func ensureScratchpad() {
+        if !scratchpads.contains(where: { $0.id == scratchpadID }) { scratchpadID = scratchpads.first?.id ?? createScratchpad() }
+    }
+    func prepareDictation(noteID: UUID) {
+        guard !active, let note = meetings.first(where: { $0.id == noteID && !$0.isTrashed }) else { return }
+        capturePurpose = .dictation; scratchpadID = note.id; selectedID = note.id
+        showDictationSetup = true
+    }
 
     @discardableResult func createMeeting(title: String = "Untitled meeting") -> UUID {
         var meeting = Meeting(title: title)
@@ -77,13 +103,15 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         }
     }
     func flush() { for task in saves.values { task.cancel() }; saves.removeAll(); for meeting in meetings { persist(meeting) } }
-    private func persist(_ meeting: Meeting) {
-        do { try store.save(meeting) } catch {
+    @discardableResult private func persist(_ meeting: Meeting) -> Bool {
+        do { try store.save(meeting); saveFailures.remove(meeting.id); return true } catch {
+            saveFailures.insert(meeting.id)
             let reason = "Could not save this meeting: \(error.localizedDescription). Keep Chirpberry open and export a copy."
             message = reason
             if active, recordingState != .finishing {
                 Task { await abortRecording(reason) }
             }
+            return false
         }
     }
     func trash(_ id: UUID) {
@@ -95,22 +123,26 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         if recordingState == .paused { Task { await resume() }; return }
         guard recordingState == .idle else { selectedID = recordingID; return }
         if selected == nil || selected?.isTrashed == true { createMeeting() }
+        capturePurpose = .meeting
         showRecordingSetup = true
     }
     func startRecording() async {
         guard recordingState == .idle || recordingState == .paused,
               let id = recordingState == .paused ? recordingID : selectedID,
               let meeting = meetings.first(where: { $0.id == id }) else { return }
+        guard !meeting.isTrashed, persist(meeting) else { return }
+        if recordingState == .idle { dictationText = ""; suppressDictationDelivery = false }
         let token = UUID(); sessionToken = token
         recordingState = .connecting; recordingID = id; selectedID = id; message = nil
         offset = meeting.duration; elapsed = offset
         do {
             let key = try ValseaKeychain.read()
             guard !key.isEmpty else { throw CoreError.invalid("Add your Valsea API key in Settings before starting.") }
-            let system = UserDefaults.standard.bool(forKey: "includeSystemAudio")
+            let isDictation = capturePurpose == .dictation
+            let system = !isDictation && UserDefaults.standard.bool(forKey: "includeSystemAudio")
             var config = RealtimeConfiguration()
-            config.target = UserDefaults.standard.object(forKey: "enableTranslation") as? Bool == false ? nil : meeting.targetLanguage
-            config.diarize = UserDefaults.standard.bool(forKey: "diarize")
+            config.target = isDictation || UserDefaults.standard.object(forKey: "enableTranslation") as? Bool == false ? nil : meeting.targetLanguage
+            config.diarize = !isDictation && UserDefaults.standard.bool(forKey: "diarize")
             config.language = UserDefaults.standard.string(forKey: "sourceLanguage") ?? "auto"
             config.hints = (UserDefaults.standard.string(forKey: "languageHints") ?? "").split(separator: ",").map(String.init)
             config.vocabulary = [meeting.vocabulary, UserDefaults.standard.string(forKey: "vocabulary") ?? "", meeting.attendees.joined(separator: ", ")].joined(separator: "\n")
@@ -121,7 +153,11 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
                 connection.onEvent = { [weak self] event in
                     guard let self, self.sessionToken == token else { return }
                     if let segment = self.reducer.apply(event, channel: channel, offset: self.offset, speakerScope: token.uuidString) {
-                        self.update(id, { $0.segments.append(segment) }, immediate: true)
+                        self.update(id, {
+                            $0.segments.append(segment)
+                            if isDictation { $0.notes = DictationText.appending(segment.original, to: $0.notes) }
+                        }, immediate: true)
+                        if isDictation { self.dictationText = DictationText.appending(segment.original, to: self.dictationText) }
                     }
                     self.partials = self.reducer.partials
                 }
@@ -157,7 +193,8 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         } catch { if sessionToken == token { await abortRecording(error.localizedDescription) } }
     }
     func resume() async { guard recordingState == .paused else { return }; await startRecording() }
-    func stopRecording(pause: Bool = false) async {
+    func stopRecording(pause: Bool = false, deliverDictation: Bool = true) async {
+        if !deliverDictation { suppressDictationDelivery = true }
         guard recordingState != .idle, recordingState != .finishing else { return }
         if recordingState == .connecting { await abortRecording("Connection cancelled."); return }
         let id = recordingID
@@ -174,10 +211,16 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         if let id { update(id, { $0.duration = elapsed }, immediate: true) }
         if partials.values.contains(where: { !$0.isEmpty }) { message = "Some provisional text did not receive a final result before the connection closed. Saved final segments are retained." }
         partials = [:]; recordingState = pause ? .paused : .idle
-        if !pause { recordingID = nil }
+        if !pause {
+            recordingID = nil
+            if capturePurpose == .dictation, let id {
+                onDictationFinished?(id, dictationText, deliverDictation && !suppressDictationDelivery && !saveFailures.contains(id))
+            }
+        }
     }
     func abortRecording(_ reason: String) async {
         guard recordingState != .idle else { return }
+        suppressDictationDelivery = true
         if recordingState == .finishing { message = reason; return }
         recordingState = .finishing
         sessionToken = UUID(); ticker?.cancel(); ticker = nil
@@ -185,7 +228,9 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         await capture?.stop(); capture = nil
         if let startedAt { elapsed = offset + Date().timeIntervalSince(startedAt) }
         if let id = recordingID { update(id, { $0.duration = elapsed }, immediate: true) }
+        let failedID = recordingID
         startedAt = nil; levels = [:]; partials = [:]; recordingState = .idle; recordingID = nil; message = reason
+        if capturePurpose == .dictation, let id = failedID { onDictationFinished?(id, dictationText, false) }
     }
     func enhance(_ id: UUID) async {
         guard busyID == nil, let meeting = meetings.first(where: { $0.id == id }) else { return }
@@ -239,14 +284,27 @@ enum RecordingState: String { case idle, connecting, recording, paused, finishin
         } catch { message = error.localizedDescription }
     }
     func connectCalendar() async {
+        guard !calendarLoading else { return }
+        calendarLoading = true; defer { calendarLoading = false }
         do {
             guard try await calendar.requestFullAccessToEvents() else { throw CoreError.invalid("Calendar access was declined. You can still create meetings manually.") }
             calendarConnected = true
-            let predicate = calendar.predicateForEvents(withStart: Date().addingTimeInterval(-3600), end: Date().addingTimeInterval(7 * 86400), calendars: nil)
-            upcoming = calendar.events(matching: predicate).filter { !$0.isAllDay }.sorted { $0.startDate < $1.startDate }
+            refreshCalendarIfAuthorized()
         } catch { calendarConnected = false; upcoming = []; message = error.localizedDescription }
     }
+    func refreshCalendarIfAuthorized() {
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { calendarConnected = false; upcoming = []; return }
+        calendarConnected = true
+        let now = Date()
+        let predicate = calendar.predicateForEvents(withStart: now, end: now.addingTimeInterval(7 * 86400), calendars: nil)
+        upcoming = calendar.events(matching: predicate).filter { !$0.isAllDay && $0.endDate > now }.sorted { $0.startDate < $1.startDate }
+    }
     func createFromCalendar(_ event: EKEvent) {
+        if let eventID = event.eventIdentifier,
+           let existing = meetings.first(where: { $0.calendarID == eventID && !$0.isTrashed }) {
+            selectedID = existing.id; notebookFilter = "All meetings"; query = ""; showUpcoming = false
+            return
+        }
         let id = createMeeting(title: event.title ?? "Calendar meeting")
         update(id, { $0.calendarID = event.eventIdentifier; $0.attendees = event.attendees?.compactMap(\.name) ?? [] }, immediate: true)
         showUpcoming = false

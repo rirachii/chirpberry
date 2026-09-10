@@ -34,7 +34,34 @@ targets:
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: NO
         COMBINE_HIDPI_IMAGES: YES
+  ChirpberryModelTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/ChirpberryAppTests
+      - path: App/NotebookModel.swift
+      - path: App/RealtimeConnection.swift
+      - path: App/AudioCapture.swift
+      - path: App/Keychain.swift
+      - path: App/CompanionShortcuts.swift
+      - path: App/DictationClipboard.swift
+      - path: App/DesktopCompanion.swift
+      - path: App/DictationDestination.swift
+      - path: App/FloatingBar.swift
+      - path: App/Brand.swift
+    dependencies:
+      - package: ChirpberryCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
+  ChirpberryModelTests:
+    build:
+      targets:
+        ChirpberryModelTests: all
+    test:
+      targets:
+        - ChirpberryModelTests
   Chirpberry:
     build:
       targets:

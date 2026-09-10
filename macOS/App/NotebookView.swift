@@ -4,6 +4,7 @@ import ChirpberryCore
 
 struct NotebookView: View {
     @ObservedObject var model: NotebookModel
+    @ObservedObject var desktop: DesktopCompanion
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
@@ -21,6 +22,7 @@ struct NotebookView: View {
                     Section { Label("Trash", systemImage: "trash").tag("Trash") }
                 }.listStyle(.sidebar)
                 VStack(spacing: 12) {
+                    Button { desktop.revealScratchpad() } label: { Label("Scratchpad", systemImage: "square.and.pencil").frame(maxWidth: .infinity, alignment: .leading) }
                     Button { model.showUpcoming = true } label: { Label("Upcoming", systemImage: "calendar").frame(maxWidth: .infinity, alignment: .leading) }
                     Button { model.showAsk = true } label: { Label("Ask your notes", systemImage: "sparkle.magnifyingglass").frame(maxWidth: .infinity, alignment: .leading) }
                     Divider()
@@ -87,7 +89,8 @@ struct NotebookView: View {
                 }
             }
         }
-        .sheet(isPresented: $model.showSettings) { SettingsView(model: model) }
+        .sheet(isPresented: $model.showSettings) { SettingsView(model: model, desktop: desktop) }
+        .sheet(isPresented: $model.showDictationSetup) { DictationSetupView(model: model, desktop: desktop).interactiveDismissDisabled() }
         .sheet(isPresented: $model.showRecordingSetup) { RecordingSetupView(model: model) }
         .sheet(isPresented: $model.showUpcoming) { UpcomingView(model: model) }
         .sheet(isPresented: $model.showAsk) { AskNotesView(model: model) }

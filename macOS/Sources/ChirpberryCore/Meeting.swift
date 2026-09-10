@@ -66,6 +66,9 @@ public struct Meeting: Codable, Identifiable, Equatable, Sendable {
     public var duration: Double = 0
     public var isTrashed = false
     public var isPinned = false
+    // Optional for backwards-compatible decoding of existing version-1 notebooks.
+    public var entryKind: String?
+    public var isScratchpad: Bool { entryKind == "scratchpad" }
     public init(title: String = "Untitled meeting") { self.title = title }
 
     public func speakerName(channel: String, speaker: Int? = nil, scope: String? = nil) -> String {

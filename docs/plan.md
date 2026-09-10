@@ -2,9 +2,16 @@
 
 ## Product
 
-Build an independent open-source Mac meeting notebook named Chirpberry, optimized for Valsea's streaming speech and translation API.
-Keep source speech and translations together, personal notes separate from generated notes, and all saved meeting documents on the Mac.
+Build an independent open-source meeting notebook named Chirpberry, optimized for Valsea's streaming speech and translation API. Electron is the approved direction for shared macOS and Windows delivery, with Linux qualified separately.
+Keep source speech and translations together, personal notes separate from generated notes, and all saved meeting documents on the user's device.
 Speech and requested summaries are sent directly to the user's Valsea account.
+
+## Electron migration
+
+The runnable local notebook is in `desktop/`. It preserves the version-1 document format and uses a separate Electron store. See its [README](../desktop/README.md) for implemented behavior and exact validation commands.
+
+Capture adapters, provider lifecycle, protected credentials, floating companion, clipboard dictation, Mac calendar preparation, summaries, audio import, and read-only MCP are implemented in the Electron candidate. Complete live provider/permission/device acceptance and qualify Windows/Linux installers before replacing the native app.
+Measure total process memory, idle CPU/energy, startup, and sustained recording before promoting Electron to the replacement app. Preserve the current native implementation and its release gates during this work.
 
 ## Steps
 
@@ -22,6 +29,8 @@ Speech and requested summaries are sent directly to the user's Valsea account.
 Granola establishes personal notes enhanced using meeting context, microphone/computer capture without a meeting bot, calendar entry points, summaries, search, and reusable meeting knowledge.
 Wispr Notetaker adds transcript correction, speaker renaming, personal vocabulary, and use of meeting history by other tools.
 Chirpberry's first release centers on those single-user Mac workflows plus live bilingual transcripts.
+The desktop companion adds a floating capture bar and Scratchpad, using the user-supplied Wispr Flow screenshots as interaction references.
+Its implementation and acceptance contract lives in [desktop-companion.md](desktop-companion.md).
 Team workspaces, hosted share links, Gmail/Slack ingestion, mobile clients, and automated outbound follow-ups require separate authorization and are not implied by the desktop release.
 No claim of complete competitor parity or superior accuracy should appear in marketing.
 

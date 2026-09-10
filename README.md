@@ -1,12 +1,14 @@
 # Chirpberry
 
-An original, open-source native Mac notebook for multilingual meetings.
-Built with SwiftUI and powered by your Valsea account for live transcription, translation, and meeting summaries.
+An original, open-source notebook for multilingual meetings.
+Chirpberry is adopting Electron for macOS and Windows, with Linux support qualified separately. The existing SwiftUI Mac app remains available during migration and uses your Valsea account for live transcription, translation, and meeting summaries.
+
+The [Electron implementation candidate](desktop/README.md) includes recording, clipboard dictation, Valsea transcription/translation and summaries, a floating bar, audio import, and protected credential storage alongside local notebooks. It uses a separate data folder. Automated Mac notebook and synthetic recording acceptance have passed; live OS/provider and Windows/Linux acceptance remain required before release. The native feature and release information below applies to the SwiftUI app.
 
 <img src="macOS/Artwork/Chirpberry.png" width="112" alt="Chirpberry's mulberry bird icon" />
 
 **First release in verification.**
-The native build and automated checks are passing; microphone permissions, real Valsea results, and native visual acceptance are still pending.
+The native build and automated checks are passing. The desktop companion has local UI acceptance; microphone permissions, real Valsea results, and full native acceptance are still pending.
 See [verification status](docs/verification.md) before relying on the app for an important meeting.
 The app is free software; Valsea processing uses your own paid account and credits.
 
@@ -20,6 +22,8 @@ The app is free software; Valsea processing uses your own paid account and credi
 - Optional calendar preparation, local question answering using Apple Intelligence when available, and cited search excerpts.
 - Local text and JSON import, Valsea audio import, Markdown/JSON export, and a read-only MCP helper.
 - Native menus, keyboard shortcuts, menu-bar controls, Keychain credentials, and an original icon.
+- A floating capture bar with language selection, dictation, meeting setup, and upcoming meetings.
+- A searchable Scratchpad with autosave, Markdown formatting and Undo, separate Valsea summaries, and Copy.
 
 Chirpberry is an independent project inspired by general meeting-notebook workflows.
 It is not affiliated with Granola, Wispr, or Valsea, and does not claim their complete feature set or benchmark accuracy.
@@ -43,6 +47,12 @@ Choose a translation target in Meeting details, then choose Record meeting.
 Inform participants before recording and grant the macOS permissions you choose to use.
 Pause and Stop end audio capture; Resume creates fresh provider streams.
 Enhance notes creates a separate summary without replacing your own writing.
+
+Use the floating bar for quick capture: tap Fn / Globe to start dictation, then again to finish and copy the final text to the clipboard. A Scratchpad copy is saved. Global Fn needs Accessibility access from Settings > Quick capture; Control-Option-D remains a fallback. Control-Option-M opens meeting setup and Control-Option-S opens Scratchpad. Settings also offers Control–Option–D or optional Tab as the primary dictation key. Live dictation requires a Valsea key and the recording disclosure and microphone permission.
+Dictation uses only the microphone and always saves final words locally. With Accessibility permission, supported active-app text fields can receive the result; otherwise use Scratchpad's Copy button.
+The first dictation requires an in-app disclosure. The bar rests as a small handle and expands on hover; choose the top, bottom, left, or right edge in Settings > Quick capture > Dock position. It stays centered on the selected edge and cannot be dragged.
+The Quick capture menu controls bar visibility and keyboard focus. Capture keeps the controls expanded.
+See [desktop companion](docs/desktop-companion.md) for details and acceptance limits.
 
 The build is ad-hoc signed and is **not notarized by Apple**.
 Review [Apple's installation guidance](https://support.apple.com/en-us/102445) if macOS blocks it.
@@ -84,6 +94,7 @@ It runs only when the AI client launches it.
 
 ```sh
 npm ci --prefix site
+npm ci --prefix desktop
 scripts/verify.sh
 cd site
 npx playwright install chromium

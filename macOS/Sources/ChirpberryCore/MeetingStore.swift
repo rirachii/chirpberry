@@ -9,6 +9,7 @@ public struct MeetingStore: Sendable {
     }
     public static let documentByteLimit = 32 * 1024 * 1024
     public func save(_ meeting: Meeting) throws {
+        try Self.validate(meeting)
         let data = try Self.exportJSON(meeting)
         guard data.count <= Self.documentByteLimit else { throw CoreError.invalid("Meeting file exceeds 32 MB.") }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
@@ -35,8 +36,17 @@ public struct MeetingStore: Sendable {
         guard data.count <= documentByteLimit else { throw CoreError.invalid("Meeting file exceeds 32 MB.") }
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let value = try decoder.decode(Meeting.self, from: data)
-        guard value.schemaVersion == 1 else { throw CoreError.invalid("This meeting uses a newer file format.") }
+        try validate(value)
         return value
+    }
+    private static func validate(_ meeting: Meeting) throws {
+        guard meeting.schemaVersion == 1 else { throw CoreError.invalid("This meeting uses a newer file format.") }
+        guard Meeting.validTime(meeting.duration), meeting.segments.allSatisfy({ segment in
+            Meeting.validTime(segment.timestamp) && segment.utterances.allSatisfy { utterance in
+                (utterance.speaker.map(Meeting.validSpeaker) ?? true) &&
+                (utterance.start.map(Meeting.validTime) ?? true) && (utterance.end.map(Meeting.validTime) ?? true)
+            }
+        }) else { throw CoreError.invalid("Meeting timing or speaker values are outside the supported range.") }
     }
     public static func exportJSON(_ meeting: Meeting) throws -> Data {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601

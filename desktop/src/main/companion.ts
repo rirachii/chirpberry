@@ -27,6 +27,9 @@ export class Companion {
       window.webContents.on('will-attach-webview', event => event.preventDefault());
       let closing: Promise<void> | undefined;
       const stopCapture = () => closing ??= this.stopCapture();
+      window.webContents.on('render-process-gone', () => {
+        void stopCapture().then(() => { if (!window.isDestroyed()) window.destroy(); }).catch(() => {});
+      });
       window.on('close', event => {
         if (!this.active) return;
         event.preventDefault();

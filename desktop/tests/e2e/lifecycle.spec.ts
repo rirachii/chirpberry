@@ -39,11 +39,42 @@ async function launch(mode = 'hang-exit') {
     await rm(root, { recursive: true, force: true });
     expect(survivors).toEqual([]);
   };
-  return { application, page, companion, events, requestPID, closeWindow, closedApplication, clipboardLog, cleanup };
+  return { application, page, companion, events, requestPID, closeWindow, closedApplication, clipboardLog, root, cleanup };
 }
 function alive(pid: number) {
   try { process.kill(pid, 0); return true; }
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false; throw error; }
+}
+
+for (const phase of ['connecting', 'recording', 'pausing'] as const) {
+  test(`companion renderer termination during ${phase} cancels capture without clipboard delivery`, async () => {
+    test.skip(!!process.env.CHIRPBERRY_EXECUTABLE, 'Only the synthetic fixture build may run this test.');
+    const fixture = await launch(phase === 'connecting' ? 'hang-start' : 'hang-exit');
+    const { application, page, companion, requestPID, root } = fixture;
+    try {
+      await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+      const pid = await requestPID('capture', 'audio.start');
+      if (phase !== 'connecting') await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+      if (phase === 'pausing') {
+        await page.getByRole('button', { name: 'Pause', exact: true }).click();
+        await expect(page.getByText(/Saving final speech/)).toBeVisible();
+      }
+      await application.evaluate(({ BrowserWindow }) => new Promise<void>(resolve => {
+        const contents = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/companion.html'))!.webContents;
+        contents.once('render-process-gone', () => resolve());
+        contents.forcefullyCrashRenderer();
+      }));
+      await expect.poll(() => companion.isClosed()).toBe(true);
+      expect(alive(pid)).toBe(false);
+      expect((await page.evaluate(() => window.chirpberry.runtime())).capture.state).toBe('idle');
+      expect(await application.evaluate(({ clipboard }) => clipboard.readText())).toBe('[]');
+      const snapshot = await page.evaluate(() => window.chirpberry.load());
+      const meeting = snapshot.meetings[0];
+      const saved = JSON.parse(await readFile(path.join(root, 'documents', `${meeting.id}.json`), 'utf8'));
+      expect(saved.notes).toBe(phase === 'connecting' ? 'Original notes' : 'Original notes\nSynthetic final speech.');
+      expect(saved.segments).toHaveLength(phase === 'connecting' ? 0 : 1);
+    } finally { await fixture.cleanup(); }
+  });
 }
 
 test('closing the companion cancels a pending native start and awaits its child', async () => {

@@ -58,6 +58,8 @@ Pause stops capture and ends provider streams; resume creates new streams.
 Stop drains queued audio and waits for final events for a bounded period.
 Errors retain saved notes and final segments; unsaved audio cannot be recovered because the app does not record it to disk.
 
+Companion renderer termination cancels Electron capture through the shared recording owner with clipboard delivery suppressed. Native audio imports append to the current document after transcription and attach translation by the imported segment's UUID, preserving live finals and personal notes across both requests. Native document decode and save reject negative or non-finite timing, timing at or above the platform integer limit, and speaker indices outside `0..<Int.max`; display formatting also tolerates invalid in-memory values. Scratchpad retains consumed formatting identity in the parent view so Notes/Summary switches cannot replay an earlier edit. Formatting executes outside SwiftUI view updates, and native undo/redo synchronizes the notes binding for persistence.
+
 ## Meeting knowledge
 
 EventKit reads upcoming calendar events only after the user connects calendars.

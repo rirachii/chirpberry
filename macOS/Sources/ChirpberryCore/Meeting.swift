@@ -73,7 +73,9 @@ public struct Meeting: Codable, Identifiable, Equatable, Sendable {
 
     public func speakerName(channel: String, speaker: Int? = nil, scope: String? = nil) -> String {
         let key = Self.speakerKey(channel: channel, speaker: speaker, scope: scope)
-        return speakerNames[key] ?? speaker.map { "\(channel) · Speaker \($0 + 1)" } ?? channel
+        if let name = speakerNames[key] { return name }
+        guard let speaker, Self.validSpeaker(speaker) else { return channel }
+        return "\(channel) · Speaker \(speaker + 1)"
     }
     public static func speakerKey(channel: String, speaker: Int?, scope: String?) -> String {
         speaker.map { "\(channel):\(scope.map { $0 + ":" } ?? "")\($0)" } ?? channel
@@ -106,9 +108,11 @@ public struct Meeting: Codable, Identifiable, Equatable, Sendable {
         return sections.joined(separator: "\n\n") + "\n"
     }
     public static func timeLabel(_ seconds: Double) -> String {
-        let value = max(0, Int(seconds.isFinite ? seconds : 0))
-        return String(format: "%02d:%02d", value / 60, value % 60)
+        let value = validTime(seconds) ? Int(seconds) : 0
+        return String(format: "%02lld:%02lld", Int64(value / 60), Int64(value % 60))
     }
+    static func validTime(_ seconds: Double) -> Bool { seconds.isFinite && seconds >= 0 && seconds < Double(Int.max) }
+    static func validSpeaker(_ speaker: Int) -> Bool { speaker >= 0 && speaker < Int.max }
 }
 
 public enum TranslationLanguage {

@@ -219,4 +219,76 @@ final class ReviewRegressionTests: XCTestCase {
             XCTAssertNil(model.busyID)
         }
     }
+
+    @MainActor func testAudioImportPreservesConcurrentLiveFinalsAndNotesAcrossBothAwaits() async throws {
+        let defaults = UserDefaults.standard
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        defaults.setVolatileDomain(arguments.merging(["enableTranslation": true, "includeSystemAudio": false]) { _, new in new }, forName: UserDefaults.argumentDomain)
+        defer { defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain) }
+        for translationFails in [false, true] {
+            let root = directory(); defer { try? FileManager.default.removeItem(at: root) }
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let source = root.appendingPathComponent("Import.wav")
+            let original = Data("Synthetic audio fixture".utf8); try original.write(to: source)
+            let documents = root.appendingPathComponent("documents")
+            let transcribing = expectation(description: "Transcription requested")
+            let translating = expectation(description: "Translation requested")
+            var transcription: CheckedContinuation<String, Error>?
+            var translation: CheckedContinuation<String, Error>?
+            let transport = ScriptedTransport(), audio = SyntheticCapture()
+            let model = NotebookModel(directory: documents, readKey: { "synthetic-key" }, makeConnection: { channel, _, configuration in
+                RealtimeConnection(channel: channel, configuration: configuration, transport: transport)
+            }, makeCapture: { audio }, transcribeAudio: { file, key in
+                XCTAssertEqual(file, source); XCTAssertEqual(key, "synthetic-key")
+                return try await withCheckedThrowingContinuation { transcription = $0; transcribing.fulfill() }
+            }, translateText: { text, target, key in
+                XCTAssertEqual(text, "Imported speech"); XCTAssertEqual(target, "english"); XCTAssertEqual(key, "synthetic-key")
+                return try await withCheckedThrowingContinuation { translation = $0; translating.fulfill() }
+            })
+            let importing = Task { await model.importFile(source) }
+            await fulfillment(of: [transcribing], timeout: 2)
+            let id = try XCTUnwrap(model.selectedID)
+            model.update(id, { $0.notes = "Notes during transcription"; $0.targetLanguage = "english" }, immediate: true)
+            await model.startRecording()
+            XCTAssertTrue(audio.running)
+            let firstFinal = expectation(description: "First live final saved")
+            let firstObserver = model.$meetings.filter { $0.first?.segments.count == 1 }.first().sink { _ in firstFinal.fulfill() }
+            transport.emit(#"{"type":"transcript.final","text":"Live before import","timestampMs":1000}"#)
+            await fulfillment(of: [firstFinal], timeout: 2); firstObserver.cancel()
+            let first = try XCTUnwrap(model.selected?.segments.first)
+            transcription?.resume(returning: "Imported speech")
+            await fulfillment(of: [translating], timeout: 2)
+            let interim = try XCTUnwrap(MeetingStore(directory: documents).load().meetings.first)
+            XCTAssertEqual(interim.segments.map(\.original), ["Live before import", "Imported speech"])
+            XCTAssertEqual(interim.notes, "Notes during transcription")
+            let importedID = try XCTUnwrap(interim.segments.last?.id)
+            model.update(id, { $0.notes = "Notes during translation" }, immediate: true)
+            let secondFinal = expectation(description: "Second live final saved")
+            let secondObserver = model.$meetings.filter { $0.first?.segments.count == 3 }.first().sink { _ in secondFinal.fulfill() }
+            transport.emit(#"{"type":"transcript.final","text":"Live during translation","timestampMs":2000}"#)
+            await fulfillment(of: [secondFinal], timeout: 2); secondObserver.cancel()
+            let second = try XCTUnwrap(model.selected?.segments.last)
+            model.update(id, { document in
+                let imported = document.segments.remove(at: 1)
+                document.segments.append(imported)
+            }, immediate: true)
+            if translationFails { translation?.resume(throwing: CoreError.invalid("Synthetic translation failure")) }
+            else { translation?.resume(returning: "Imported translation") }
+            await importing.value
+            transport.onStop = { transport.emit(#"{"type":"session.ended"}"#) }
+            await model.stopRecording()
+            let saved = try XCTUnwrap(MeetingStore(directory: documents).load().meetings.first)
+            XCTAssertEqual(saved.segments.count, 3)
+            XCTAssertEqual(saved.segments.first(where: { $0.id == first.id }), first)
+            XCTAssertEqual(saved.segments.first(where: { $0.id == second.id }), second)
+            let imported = try XCTUnwrap(saved.segments.first(where: { $0.id == importedID }))
+            XCTAssertEqual(imported.original, "Imported speech")
+            XCTAssertEqual(imported.translation, translationFails ? nil : "Imported translation")
+            XCTAssertEqual(imported.targetLanguage, translationFails ? nil : "english")
+            XCTAssertEqual(saved.notes, "Notes during translation")
+            XCTAssertEqual(try Data(contentsOf: source), original)
+            XCTAssertNil(model.busyID)
+            XCTAssertFalse(audio.running)
+        }
+    }
 }

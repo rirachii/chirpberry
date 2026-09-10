@@ -63,7 +63,7 @@ import ChirpberryCore
             Button(desktop.barVisible ? "Hide floating bar" : "Show floating bar") { desktop.toggleBar() }.disabled(model.active)
             Divider()
             if model.active {
-                Text("\(model.recordingState.rawValue.capitalized) · \(Int(model.elapsed / 60)) min")
+                Text("\(model.recordingState.rawValue.capitalized) · \(max(0, Int(exactly: (model.elapsed / 60).rounded(.towardZero)) ?? 0)) min")
                 Button("Stop recording") { Task { await model.stopRecording() } }
             } else { Button("Start recording…") { reveal(); model.openRecordingSetup() } }
             Button("Quit Chirpberry") { NSApplication.shared.terminate(nil) }

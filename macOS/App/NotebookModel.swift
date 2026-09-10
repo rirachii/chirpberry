@@ -51,12 +51,17 @@ enum CapturePurpose { case meeting, dictation }
     private let makeConnection: @MainActor (String, String, RealtimeConfiguration) -> RealtimeConnection
     private let makeCapture: () -> any RecordingAudioCapture
     private let formatMeeting: (Meeting) async throws -> FormattedNotes
+    private let transcribeAudio: (URL, String) async throws -> String
+    private let translateText: (String, String, String) async throws -> String
 
     init(directory: URL? = nil, readKey: @escaping () throws -> String = { try ValseaKeychain.read() },
          makeConnection: @escaping @MainActor (String, String, RealtimeConfiguration) -> RealtimeConnection = { RealtimeConnection(channel: $0, key: $1, configuration: $2) },
          makeCapture: @escaping () -> any RecordingAudioCapture = { AudioCapture() },
-         formatMeeting: @escaping (Meeting) async throws -> FormattedNotes = { try await ValseaREST(key: ValseaKeychain.read()).format($0) }) {
+         formatMeeting: @escaping (Meeting) async throws -> FormattedNotes = { try await ValseaREST(key: ValseaKeychain.read()).format($0) },
+         transcribeAudio: @escaping (URL, String) async throws -> String = { try await ValseaREST(key: $1).transcribe(file: $0) },
+         translateText: @escaping (String, String, String) async throws -> String = { try await ValseaREST(key: $2).translate($0, target: $1) }) {
         self.readKey = readKey; self.makeConnection = makeConnection; self.makeCapture = makeCapture; self.formatMeeting = formatMeeting
+        self.transcribeAudio = transcribeAudio; self.translateText = translateText
         // UI acceptance runs use an isolated document directory without touching the user's notes.
         let testPath = ProcessInfo.processInfo.environment["CHIRPBERRY_DOCUMENTS_DIR"]
         store = MeetingStore(directory: directory ?? testPath.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? MeetingStore.defaultDirectory)
@@ -317,14 +322,17 @@ enum CapturePurpose { case meeting, dictation }
                 guard !key.isEmpty else { throw CoreError.invalid("Add your Valsea key in Settings to transcribe audio files.") }
                 let id = createMeeting(title: url.deletingPathExtension().lastPathComponent); busyID = id
                 defer { busyID = nil }
-                let api = ValseaREST(key: key)
-                let text = try await api.transcribe(file: url)
+                let text = try await transcribeAudio(url, key)
                 let segment = TranscriptSegment(timestamp: 0, channel: "Imported audio", original: text)
-                update(id, { $0.segments = [segment] }, immediate: true)
-                if UserDefaults.standard.object(forKey: "enableTranslation") as? Bool != false {
-                    let target = meetings.first { $0.id == id }!.targetLanguage
-                    let translation = try await api.translate(text, target: target)
-                    update(id, { $0.segments[0].translation = translation; $0.segments[0].targetLanguage = target }, immediate: true)
+                update(id, { $0.segments.append(segment) }, immediate: true)
+                if UserDefaults.standard.object(forKey: "enableTranslation") as? Bool != false,
+                   let target = meetings.first(where: { $0.id == id })?.targetLanguage {
+                    let translation = try await translateText(text, target, key)
+                    update(id, { document in
+                        guard let index = document.segments.firstIndex(where: { $0.id == segment.id }) else { return }
+                        document.segments[index].translation = translation
+                        document.segments[index].targetLanguage = target
+                    }, immediate: true)
                 }
             }
             notebookFilter = "All meetings"; query = ""

@@ -47,7 +47,7 @@ export async function prepareRelease({ desktop = fileURLToPath(new URL('..', imp
     }
     for (const name of artifacts) await copyFile(path.join(staging, name), path.join(destination, name));
     const source = `Chirpberry-${version}-source.zip`;
-    await execute('git', ['archive', '--format=zip', `--prefix=Chirpberry-${version}/`, '-o', path.join(destination, source), commit]);
+    await run('git', ['archive', '--format=zip', `--prefix=Chirpberry-${version}/`, '-o', path.join(destination, source), commit], { cwd: root, stdio: 'inherit' });
     const names = [...artifacts, source]; const checksums = {};
     for (const name of names) checksums[name] = await digest(path.join(destination, name));
     await writeFile(path.join(destination, 'release.json'), JSON.stringify({ version, commit, platform, arch, createdAt: new Date().toISOString(),

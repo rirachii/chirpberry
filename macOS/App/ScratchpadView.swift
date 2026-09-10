@@ -9,6 +9,7 @@ struct ScratchpadView: View {
     @State private var version = "Notes"
     @State private var copyStatus = ""
     @State private var formatRequest: NoteFormatRequest?
+    @State private var formatConsumption = NoteFormatConsumption()
     private var note: Meeting? { model.scratchpads.first { $0.id == model.scratchpadID } }
     private var visibleNotes: [Meeting] {
         model.scratchpads.filter { query.isEmpty || $0.searchableText.localizedCaseInsensitiveContains(query) }
@@ -61,7 +62,7 @@ struct ScratchpadView: View {
                             }
                         } else {
                             ZStack(alignment: .topLeading) {
-                                NoteTextEditor(text: binding(\.notes), formatRequest: formatRequest)
+                                NoteTextEditor(text: binding(\.notes), formatRequest: formatRequest, formatConsumption: formatConsumption)
                                     .accessibilityLabel("Scratchpad editor")
                                 if note.notes.isEmpty {
                                     VStack(alignment: .leading, spacing: 9) {
@@ -163,59 +164,5 @@ struct ScratchpadView: View {
                 .disabled(version == "Summary" ? note.enhancedNotes.isEmpty : note.notes.isEmpty)
                 .onChange(of: note.notes) { _, _ in copyStatus = "" }
         }.font(.callout).padding(20)
-    }
-}
-
-struct NoteFormatRequest: Identifiable {
-    let id = UUID()
-    let format: NoteFormat
-}
-
-private struct NoteTextEditor: NSViewRepresentable {
-    @Binding var text: String
-    let formatRequest: NoteFormatRequest?
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
-    func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
-        let editor = scroll.documentView as! NSTextView
-        editor.isRichText = false; editor.allowsUndo = true
-        editor.font = .systemFont(ofSize: 16); editor.textColor = .textColor
-        editor.backgroundColor = .textBackgroundColor
-        editor.textContainerInset = NSSize(width: 20, height: 18)
-        editor.isAutomaticQuoteSubstitutionEnabled = true
-        editor.isAutomaticSpellingCorrectionEnabled = true
-        editor.setAccessibilityLabel("Scratchpad editor")
-        editor.delegate = context.coordinator
-        return scroll
-    }
-    func updateNSView(_ scroll: NSScrollView, context: Context) {
-        context.coordinator.text = $text
-        guard let editor = scroll.documentView as? NSTextView else { return }
-        if editor.string != text {
-            let selection = editor.selectedRange()
-            editor.string = text
-            editor.setSelectedRange(NSRange(location: min(selection.location, (text as NSString).length), length: 0))
-        }
-        if let request = formatRequest, request.id != context.coordinator.appliedRequest {
-            context.coordinator.appliedRequest = request.id
-            let selection = editor.selectedRange()
-            guard let result = request.format.apply(to: editor.string, selection: selection) else { return }
-            // Use NSTextView's editing contract so formatting participates in Undo.
-            let replacementLength = (result.text as NSString).length - (editor.string as NSString).length + selection.length
-            let replacement = (result.text as NSString).substring(with: NSRange(location: selection.location, length: replacementLength))
-            if editor.shouldChangeText(in: selection, replacementString: replacement) {
-                editor.textStorage?.replaceCharacters(in: selection, with: replacement)
-                editor.didChangeText(); editor.setSelectedRange(result.selection)
-                editor.window?.makeFirstResponder(editor)
-            }
-        }
-    }
-    final class Coordinator: NSObject, NSTextViewDelegate {
-        var text: Binding<String>
-        var appliedRequest: UUID?
-        init(text: Binding<String>) { self.text = text }
-        func textDidChange(_ notification: Notification) {
-            if let editor = notification.object as? NSTextView { text.wrappedValue = editor.string }
-        }
     }
 }

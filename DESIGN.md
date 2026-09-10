@@ -16,7 +16,9 @@ Use one clear download action, a selectable Homebrew command, and honest setup r
 Avoid fabricated testimonials, benchmark claims, and promises of feature parity that have not been verified.
 Reference: Granola's note-first workflow, Wispr's transcript correction and speaker controls, and the design-contract structure from https://github.com/voltagent/awesome-design-md.
 
-## Desktop companion
+## Native SwiftUI desktop companion
+
+This section describes `macOS/App/`. Electron's bar uses the dimensions and capture rules above, but its four idle actions are Dictate, New meeting, Scratchpad, and Open notebook. Electron settings hold language and calendar controls; it does not provide native-only Tab dictation, external-editor insertion, a separate Scratchpad window, or the Quick capture menu.
 
 The floating bar rests as a translucent 52 × 10 point horizontal capsule (10 × 60 on a vertical edge), expanding on hover into a compact smoky lavender-gray capsule with a mulberry microphone button and white SF Symbols. Its background uses 62% opacity, with an opaque fallback for Reduce Transparency. Idle horizontal controls fit in a 200 × 60 point window; action targets are 34 points tall. No branding badge or custom hover tag sits above the controls.
 Dock it to the top, bottom, left, or right of a display's usable area. Top/bottom use horizontal controls; left/right use vertical controls with upright icons.

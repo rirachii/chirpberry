@@ -22,7 +22,7 @@ See [desktop companion](desktop-companion.md) for window lifecycle, external ins
 
 ## Data and network boundaries
 
-Meeting documents are separate versioned JSON files under Application Support/Chirpberry/Meetings.
+Native meeting documents are separate versioned JSON files under Application Support/Chirpberry/Meetings. Electron uses the independent store described above.
 Writes use atomic replacement with owner-only file permissions. Both stores validate the exact serialized output against the 32 MiB reload limit before replacing a document. Native quit waits for shared capture finalization and cancels termination if a document cannot be saved, retaining in-memory edits for export.
 Unreadable files remain untouched and are reported separately from readable meetings.
 Trash is a reversible document flag; the app does not permanently delete meeting files.
@@ -30,13 +30,15 @@ Personal notes and generated notes occupy different fields.
 Exports never include credentials.
 
 Audio goes directly to api.valsea.ai over an authenticated encrypted WebSocket.
-The key is stored in macOS Keychain and sent in an Authorization header, never a query string.
+The key is stored in macOS Keychain, or protected Electron safeStorage on Windows/Linux, and sent in an Authorization header, never a query string. Linux rejects the plaintext fallback backend.
 Chirpberry does not save microphone or computer-audio recordings.
 Audio-file import uploads the explicitly selected source file through the batch API without changing the original.
 Enhance notes sends the selected meeting's notes and transcript to Valsea's formatting endpoint.
 Provider policies and charges apply to hosted processing.
 
 ## Live speech
+
+The Apple capture APIs below serve the native app and Electron's Mac helper. Electron's Windows/Linux adapter instead uses its isolated capture renderer and continuous PCM worklet; Linux has no system-audio integration. See the platform limits in [desktop development](../desktop/README.md).
 
 Microphone-only capture uses AVAudioEngine.
 The optional Mac audio mode uses ScreenCaptureKit audio and microphone outputs; no screen output handler or video recording is installed.
@@ -62,9 +64,9 @@ EventKit reads upcoming calendar events only after the user connects calendars.
 It never writes to the calendar.
 Related prior notes provide a local preparation view.
 Search indexes titles, personal notes, enhanced notes, speaker names, source text, and translations in memory.
-On-device question answering uses Apple Foundation Models when available, with a maximum of four retrieved source excerpts and validated source indices.
+Native on-device question answering uses Apple Foundation Models when available, with a maximum of four retrieved source excerpts and validated source indices. Electron does not yet implement this feature.
 Without an available model, the UI identifies its output as matching source excerpts.
-The bundled chirpberry-mcp executable exposes read-only search_meetings and get_meeting tools over stdio only when a user launches it through an AI client.
+The native chirpberry-mcp executable and Electron's portable mcp.cjs expose read-only search_meetings and get_meeting tools over stdio only when a user launches them through an AI client. The portable entrypoint requires Node 22+ and an explicit notebook directory.
 No background listener, public share service, team synchronization, or outbound messaging is present.
 
 ## Verification
@@ -73,4 +75,4 @@ Core tests cover source/translation semantics, provisional/final state, deduplic
 Provider-backed verification and actual capture tests are separate release gates from unit tests.
 The website currently uses a labelled HTML illustration of the notebook.
 A verified native screenshot is a separate visual acceptance task.
-Release packaging must include the exact source revision, native app, MCP executable, source archive, manifest, and checksums.
+Release packaging must include the exact source revision, the selected app and its MCP entrypoint, source archive, manifest, and checksums. Native and Electron release scripts and artifacts are separate; [releasing](releasing.md) owns those procedures.

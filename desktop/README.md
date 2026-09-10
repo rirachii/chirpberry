@@ -36,6 +36,8 @@ Linux currently offers microphone capture; system audio and calendars are unavai
 
 ## Storage and OS setup
 
+Open Settings, save your Valsea API key, accept the recording/cloud-processing disclosure, and save settings. On Mac an existing Chirpberry Keychain item can supply the key, subject to macOS granting the rebuilt helper access. Start Dictate or Record explicitly and respond to the OS microphone prompt. Enable system audio only for a consented meeting and authorize the corresponding OS prompt. Enable global shortcuts separately; for Fn, use Enable Fn Accessibility access, grant access in System Settings, then return and save settings to retry registration. A successful shortcut registration does not verify a physical Fn tap outside the app.
+
 The bundle identity is `com.rirachii.chirpberry.desktop`, product name **Chirpberry**, with `Chirpberry Desktop/Meetings` under Electron's application-data directory. The original native app and the removed Preview have separate profiles. Do not point this candidate at either original document store; use Import.
 
 Mac keys use the existing Chirpberry Valsea Keychain item. The bundled **Chirpberry Capture** helper owns microphone, system audio, calendar, and Fn permissions. Quit the original Mac app before enabling Electron global shortcuts to avoid conflicts. Saving settings retries registration after Accessibility is allowed. Rebuilt ad-hoc signatures may need their permission authorization refreshed. Never change TCC databases, Gatekeeper, or quarantine settings to bypass OS protection.
@@ -53,6 +55,6 @@ Mac keys use the existing Chirpberry Valsea Keychain item. The bundled **Chirpbe
 
 Unit/integration checks cover real file persistence, failures, cancellation, phase-scoped transcripts, final clipboard delivery, audio continuity, local WebSocket auth/lifecycle, summary parsing, read-only MCP, and Swift document interchange. Electron acceptance covers the notebook and a separate labelled synthetic recording build. Synthetic tests do not record audio or contact Valsea.
 
-For packaged notebook acceptance, set `CHIRPBERRY_EXECUTABLE` to the executable and run `npx playwright test` from `desktop/`. On Mac: `release/mac-arm64/Chirpberry.app/Contents/MacOS/Chirpberry`. The fixture test intentionally skips against production packages.
+For packaged notebook acceptance, set `CHIRPBERRY_EXECUTABLE` to the executable and run `npx playwright test` from `desktop/`. On Mac: `release/mac-arm64/Chirpberry.app/Contents/MacOS/Chirpberry`. All fixture tests intentionally skip against production packages.
 
 Use `npm run release:prepare --prefix desktop` only from a clean reviewed source commit. It refuses dirty or changed source and existing versioned release output, builds installers in fresh invocation-specific staging, verifies Mac DMG payload/signatures, and creates exact-source archives, manifests, and SHA-256 checksums. It does not publish or certify live acceptance. See [verification](../docs/verification.md), [migration acceptance](../docs/electron-migration.md), and [release procedure](../docs/releasing.md).

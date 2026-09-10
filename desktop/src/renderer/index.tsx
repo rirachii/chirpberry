@@ -113,7 +113,7 @@ function App() {
       <div className="meeting-list" aria-label="Notes">
         {visible.map(meeting => <button key={meeting.id} aria-pressed={meeting.id === selectedID} className={`meeting-row ${meeting.id === selectedID ? 'selected' : ''}`} onClick={() => { select(meeting.id); setTab('notes'); }}>
           <span className="meeting-title">{meeting.isPinned && <Pin size={12} />}<span className="truncate">{meeting.title || 'Untitled meeting'}</span></span>
-          <span className="meeting-preview truncate">{meeting.notes.trim().split('\n').find(Boolean) || (meeting.segments.length ? `${meeting.segments.length} transcript segments` : 'No notes yet')}</span>
+          <span className="meeting-preview truncate">{meeting.notes.trim().split('\n').find(Boolean) || (meeting.segments.length ? `${meeting.segments.length} transcript segment${meeting.segments.length === 1 ? "" : "s"}` : 'No notes yet')}</span>
           <span className="meeting-date">{new Date(meeting.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {meeting.notebook || 'Inbox'}</span>
         </button>)}
         {loaded && !visible.length && <p className="list-empty">{query ? 'No matching notes.' : filter.kind === 'trash' ? 'Trash is empty.' : 'Your notes will appear here.'}</p>}
@@ -176,7 +176,7 @@ function App() {
             </div>
             {current.actions.length > 0 && <section className="actions" aria-label="Action items"><h2>Action items</h2>{current.actions.map(action => <label className="action" key={action.id}><input type="checkbox" checked={action.completed} onChange={event => edit({ actions: current.actions.map(item => item.id === action.id ? { ...item, completed: event.target.checked } : item) })} /><span>{action.description}{(action.owner || action.deadline) && <small>{[action.owner, action.deadline].filter(Boolean).join(' · ')}</small>}</span></label>)}</section>}
           </section>
-          {inspector && <aside className="transcript" aria-label="Transcript"><header><Languages size={17} /><h2>Transcript</h2><span>{current.segments.length ? `${current.segments.length} segments` : ''}</span></header>
+          {inspector && <aside className="transcript" aria-label="Transcript"><header><Languages size={17} /><h2>Transcript</h2><span>{current.segments.length ? `${current.segments.length} segment${current.segments.length === 1 ? "" : "s"}` : ''}</span></header>
             {current.segments.length ? <div className="transcript-segments">{current.segments.map(segment => <article className="segment" key={segment.id}>
               <div className="segment-meta"><span>{segment.channel}</span><time>{timeLabel(segment.timestamp)}</time></div>
               {segment.utterances.length ? segment.utterances.map((utterance, index) => <div key={index} className="utterance"><input className="speaker-name" aria-label={`Speaker name at ${timeLabel(segment.timestamp)}, utterance ${index + 1}`} value={speakerName(current, segment, utterance.speaker)} onChange={event => edit({ speakerNames: { ...current.speakerNames, [speakerKey(segment.channel, utterance.speaker, segment.speakerScope)]: event.target.value } })} /><p>{utterance.transcript}</p></div>) : <p>{segment.original}</p>}

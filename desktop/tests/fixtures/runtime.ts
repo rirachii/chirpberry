@@ -14,8 +14,8 @@ if (lifecycleDirectory) {
 } else {
   // Fixture acceptance must never replace the user's OS clipboard.
   let text = 'Existing synthetic clipboard';
-  clipboard.writeText = value => { text = value; };
-  clipboard.readText = () => text;
+  clipboard.writeText = async value => { text = value; };
+  clipboard.readText = async () => text;
 }
 const helper = (name: string, mode: string) => new NativeBridge(process.env.CHIRPBERRY_FIXTURE_NODE_EXECUTABLE!,
   [path.resolve('tests/fixtures/native-helper.mjs'), path.join(lifecycleDirectory!, `${name}.jsonl`), mode], 150);

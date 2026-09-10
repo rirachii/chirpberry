@@ -11,6 +11,20 @@ Use native glass only for chrome and floating controls, keeping long text on opa
 The Electron interface carries over the ivory, ink, and mulberry palette and the note-first reading order. Use OS system fonts and one portable icon family (Lucide) for its web controls. Keep keyboard focus, native text editing and Undo, dark appearance, and reduced-motion support.
 The Electron candidate exposes recording, provider summaries, and the companion through the main-process recording owner. First use requires explicit cloud disclosure and protected credentials. Keep live drafts visually distinct from saved finals. The companion is 200×60 points expanded and 52×10 at rest, opens on entry, and collapses 120 ms after exit unless capture is active. Report unavailable platform integrations honestly in Settings.
 
+## Electron notebook simplicity
+
+The default window has a compact recent-notes sidebar and an opaque writing surface. The sidebar holds the small brand, Search, one collection selector (All notes, Pinned, Notebooks, Trash), New note, Library, and Settings. It can collapse for focused writing; the native Search notes command reveals it and focuses Search. New note immediately focuses the editor.
+
+Use one toolbar. Record meeting is its primary idle action. A labeled Transcript toggle opens an optional inspector; closing it never hides capture state. Active capture replaces the idle action with the recording state, elapsed time, Pause/Resume, and Stop/Cancel. Keep these controls available even when the selected collection has no note.
+
+The Note actions overflow and note-row context menu expose clipboard dictation, pinning, notebook movement, export/copy, and reversible Trash. Use native top-layer popovers with keyboard navigation, Escape, outside-click dismissal, and visible focus. Library groups Scratchpad creation and note/audio imports. Details holds notebook, summary template, and vocabulary. Original notes and Summary remain independent; generation is unavailable until notes or transcript exist. Successful autosave is quiet; failures remain visible.
+
+The companion uses a translucent lavender-gray surface with a distinct dictation button and actual state feedback. Keep its approved size and hover timing, opaque reduced-transparency fallback, and reduced-motion support. Do not repeat the app name as idle status.
+
+The installed Wispr Flow scratchpad informed the focused writing and collapsible-navigation pattern. Bear, Raycast Notes, and the other [reference research](docs/references.md) inform hierarchy only; Chirpberry keeps its own branding, composition, and implementation.
+
+## Website
+
 The website uses a warm editorial layout with a large notebook visual and the same mulberry accent. The [website guide](site/README.md) owns the illustration and verified-screenshot policy.
 Use one clear download action, a selectable Homebrew command, and honest setup requirements.
 Avoid fabricated testimonials, benchmark claims, and promises of feature parity that have not been verified.

@@ -1,3 +1,4 @@
+import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -11,9 +12,9 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
   try {
     originalClipboard = await application.evaluate(({ clipboard }) => clipboard.readText());
     const page = await application.firstWindow(); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-    await page.getByRole('button', { name: 'New scratchpad' }).click();
+    await libraryAction(page, 'New scratchpad');
     await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original thought.');
-    await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+    await noteAction(page, 'Dictate to clipboard');
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.screenshot({ path: info.outputPath('synthetic-cloud-disclosure.png') });
     await page.getByRole('checkbox', { name: /I understand and agree/ }).check();
@@ -21,7 +22,8 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
     await expect(page.getByText('Settings saved.', { exact: true })).toBeVisible();
     expect((await new AxeBuilder({ page }).setLegacyMode().analyze()).violations).toEqual([]);
     await page.getByRole('button', { name: 'Close settings' }).click();
-    await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+    await noteAction(page, 'Dictate to clipboard');
+    await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
     await expect(page.getByText('Synthetic live draft', { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toHaveValue('Keep my original thought.');
     await page.screenshot({ path: info.outputPath('synthetic-live-draft.png') });
@@ -40,7 +42,7 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
     await writeFile(info.outputPath('synthetic-clipboard.txt'), await application.evaluate(({ clipboard }) => clipboard.readText()));
     const audio = path.join(root, 'synthetic.wav'); await writeFile(audio, Buffer.alloc(44));
     await application.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, audio);
-    await page.getByRole('button', { name: 'Transcribe audio file', exact: true }).click();
+    await libraryAction(page, 'Transcribe audio file');
     await expect(page.getByText('Synthetic imported speech.', { exact: true })).toBeVisible();
     const companion = application.windows().find(window => window.url().endsWith('/companion.html'))!;
     await expect.poll(() => companion.evaluate(() => window.innerWidth)).toBe(52);

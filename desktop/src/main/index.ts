@@ -122,7 +122,7 @@ if (locked) void app.whenReady().then(async () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
     { label: 'File', submenu: [
-      { label: 'New meeting', accelerator: 'CmdOrCtrl+N', click: command('new') },
+      { label: 'New note', accelerator: 'CmdOrCtrl+N', click: command('new') },
       { label: 'Import…', accelerator: 'CmdOrCtrl+O', click: command('import') },
       { type: 'separator' }, { role: process.platform === 'darwin' ? 'close' : 'quit' }
     ] },

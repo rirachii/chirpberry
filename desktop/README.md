@@ -22,6 +22,8 @@ Install the Mac candidate into `/Applications/Chirpberry Electron Candidate/Chir
 ## Implemented behavior
 
 - Meeting notes and Scratchpads, independent original and summary notes, search, notebooks, pinning, reversible Trash, speaker naming, and native text editing/Undo.
+- A two-pane notebook by default, with a collapsible sidebar and optional Transcript inspector. New note focuses the editor. One collection selector covers All notes, Pinned, notebooks, and Trash; the native Search notes command restores a hidden sidebar.
+- One toolbar keeps Record meeting prominent and capture state, Pause/Resume, and Stop visible during recording, including when browsing other collections. Note actions (`…`, or right-click a note) contains Dictate to clipboard, Pin, Move to notebook, export/copy, and Trash. Library holds New scratchpad, Import notes, and Transcribe audio file. Menus support arrow keys, Home/End, Escape, and outside-click dismissal.
 - Atomic, serialized document saves; disk failures preserve in-memory edits for export. JSON, Markdown, and text import creates a new identity and leaves originals untouched.
 - Explicit recording/disclosure controls; microphone and optional system audio, live source/translation segments, final-only persistence, pause/resume, bounded provider queues, and stop on error, either notebook or companion closure, or exit. A full Stop upgrades an in-flight Pause; closure or cancellation disables clipboard delivery.
 - Valsea WebSocket authentication in headers. Renderer processes cannot read credentials or call provider endpoints. Mac uses Keychain; Windows uses Electron safeStorage/DPAPI; Linux refuses plaintext `basic_text` storage and needs an unlocked system keyring.
@@ -36,7 +38,7 @@ Linux currently offers microphone capture; system audio and calendars are unavai
 
 ## Storage and OS setup
 
-Open Settings, save your Valsea API key, accept the recording/cloud-processing disclosure, and save settings. On Mac an existing Chirpberry Keychain item can supply the key, subject to macOS granting the rebuilt helper access. Start Dictate or Record explicitly and respond to the OS microphone prompt. Enable system audio only for a consented meeting and authorize the corresponding OS prompt. Enable global shortcuts separately; for Fn, use Enable Fn Accessibility access, grant access in System Settings, then return and save settings to retry registration. A successful shortcut registration does not verify a physical Fn tap outside the app.
+Open Settings, save your Valsea API key, accept the recording/cloud-processing disclosure, and save settings. On Mac an existing Chirpberry Keychain item can supply the key, subject to macOS granting the rebuilt helper access. Start Dictate to clipboard from Note actions or the companion, or choose Record meeting, and respond to the OS microphone prompt. Enable system audio only for a consented meeting and authorize the corresponding OS prompt. Enable global shortcuts separately; for Fn, use Enable Fn Accessibility access, grant access in System Settings, then return and save settings to retry registration. A successful shortcut registration does not verify a physical Fn tap outside the app.
 
 The bundle identity is `com.rirachii.chirpberry.desktop`, product name **Chirpberry**, with `Chirpberry Desktop/Meetings` under Electron's application-data directory. The original native app and the removed Preview have separate profiles. Do not point this candidate at either original document store; use Import.
 

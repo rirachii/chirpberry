@@ -1,3 +1,4 @@
+import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +15,7 @@ async function launch(mode = 'hang-exit') {
   const closedApplication = new Promise<void>(resolve => application.once('close', () => { closed = true; resolve(); }));
   const clipboardLog = path.join(root, 'clipboard.json');
   const page = await application.firstWindow();
-  await page.getByRole('button', { name: 'New scratchpad', exact: true }).click();
+  await libraryAction(page, 'New scratchpad');
   await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Original notes');
   await page.getByRole('textbox', { name: 'My notes', exact: true }).blur();
   await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toHaveValue('Original notes');
@@ -52,7 +53,7 @@ for (const phase of ['connecting', 'recording', 'pausing'] as const) {
     const fixture = await launch(phase === 'connecting' ? 'hang-start' : 'hang-exit');
     const { application, page, companion, requestPID, root } = fixture;
     try {
-      await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+      await noteAction(page, 'Dictate to clipboard');
       const pid = await requestPID('capture', 'audio.start');
       if (phase !== 'connecting') await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
       if (phase === 'pausing') {
@@ -82,7 +83,7 @@ test('closing the companion cancels a pending native start and awaits its child'
   const fixture = await launch('hang-start');
   const { application, page, companion, requestPID, closeWindow } = fixture;
   try {
-    await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+    await noteAction(page, 'Dictate to clipboard');
     const pid = await requestPID('capture', 'audio.start');
     await closeWindow('companion');
     await expect.poll(() => companion.isClosed()).toBe(true);
@@ -98,7 +99,7 @@ for (const surface of ['companion', 'notebook'] as const) {
     const fixture = await launch();
     const { application, page, companion, requestPID, events, closeWindow, closedApplication } = fixture;
     try {
-      await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+      await noteAction(page, 'Dictate to clipboard');
       await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
       const capturePID = await requestPID('capture', 'audio.start');
       const runtimePID = await requestPID('runtime', 'ping');
@@ -127,7 +128,7 @@ for (const action of ['bar Stop', 'helper shortcut'] as const) {
     const fixture = await launch();
     const { application, page, companion } = fixture;
     try {
-      await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+      await noteAction(page, 'Dictate to clipboard');
       await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Pause', exact: true }).click();
       await expect(page.getByText(/Saving final speech/)).toBeVisible();

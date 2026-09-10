@@ -1,3 +1,4 @@
+import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,8 +19,8 @@ for (const outcome of ['resolve', 'reject', 'quit'] as const) {
     const closedApplication = new Promise<void>(resolve => application.once('close', () => { closed = true; resolve(); }));
     try {
       const page = await application.firstWindow();
-      await page.getByRole('button', { name: 'New scratchpad', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Meeting title' }).fill(`Synthetic clipboard ${outcome}`);
+      await libraryAction(page, 'New scratchpad');
+      await page.getByRole('textbox', { name: 'Note title' }).fill(`Synthetic clipboard ${outcome}`);
       await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original notes.');
       await page.getByRole('textbox', { name: 'My notes', exact: true }).blur();
       await page.evaluate(async () => {
@@ -41,8 +42,9 @@ for (const outcome of ['resolve', 'reject', 'quit'] as const) {
         };
         clipboard.readText = async () => text;
       }, outcome);
-      await page.getByRole('button', { name: 'Dictate', exact: true }).click();
-      await expect(page.getByText('Synthetic live draft', { exact: true })).toBeVisible();
+      await noteAction(page, 'Dictate to clipboard');
+      await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
+    await expect(page.getByText('Synthetic live draft', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Stop', exact: true }).click();
       await expect.poll(() => application.evaluate(() => globalThis.clipboardGate!.copies)).toEqual(['Synthetic final speech.']);
       await expect(page.getByText(/Saving final speech/)).toBeVisible();

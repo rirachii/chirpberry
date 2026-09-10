@@ -1,3 +1,4 @@
+import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -11,7 +12,7 @@ async function launch() {
     CHIRPBERRY_PROFILE_DIR: path.join(root, 'profile'), CHIRPBERRY_DOCUMENTS_DIR: path.join(root, 'documents'),
     CHIRPBERRY_DISABLE_OS_INTEGRATIONS: '1', CHIRPBERRY_FIXTURE_CONNECT_DELAY_MS: '1500', CHIRPBERRY_FIXTURE_FINISH_DELAY_MS: '2000' } });
   const page = await application.firstWindow();
-  await page.getByRole('button', { name: 'New meeting', exact: true }).first().click();
+  await page.getByRole('button', { name: 'New note', exact: true }).first().click();
   await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toBeVisible();
   return { application, page, root };
 }
@@ -66,16 +67,16 @@ test('collection navigation retains capture controls with the companion disabled
   try {
     await settings(page, { barVisible: false, disclosureAccepted: true });
     await page.getByRole('button', { name: 'Record meeting', exact: true }).click();
-    await page.getByRole('button', { name: 'Pinned', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Filter notes' }).selectOption('pinned');
     await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect.poll(() => page.evaluate(async () => (await window.chirpberry.runtime()).capture.state)).toBe('idle');
-    await page.getByRole('button', { name: /All notes/ }).click();
+    await page.getByRole('combobox', { name: 'Filter notes' }).selectOption('all');
     await page.getByRole('button', { name: /Untitled meeting.*No notes yet/ }).click();
     await page.getByRole('button', { name: 'Record meeting', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
     for (const name of ['Pinned', 'Trash', 'All notes']) {
-      await page.getByRole('button', { name: name === 'All notes' ? /All notes/ : name, exact: name !== 'All notes' }).click();
+      await page.getByRole('combobox', { name: 'Filter notes' }).selectOption(name === 'All notes' ? 'all' : name.toLowerCase());
       await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeEnabled();
       await expect(page.getByRole('button', { name: 'Go to recording' })).toBeVisible();
@@ -85,7 +86,7 @@ test('collection navigation retains capture controls with the companion disabled
     await expect(page.getByText(/Saving final speech…/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Trash', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Filter notes' }).selectOption('trash');
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Stop', exact: true }).click();

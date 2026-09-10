@@ -19,7 +19,7 @@ function Bar() {
       <button aria-label="Record meeting" title="Record meeting" disabled={active} onClick={() => void action('meeting')}><Circle size={17} /></button>
       <button aria-label="Open scratchpad" title="Scratchpad" onClick={() => void action('scratchpad')}><StickyNote size={18} /></button>
       <button aria-label="Open notebook" title="Open notebook" onClick={() => void action('notebook')}><BookOpen size={18} /></button>
-    </div><span className="bar-status" role="status">{error || (capture.state === 'recording' ? `${capture.purpose === 'dictation' ? 'Dictating' : 'Recording'} · ${Math.floor(capture.elapsed / 60)}:${String(Math.floor(capture.elapsed % 60)).padStart(2, '0')}` : capture.state === 'idle' ? 'Chirpberry' : capture.state === 'paused' ? 'Paused · open notebook' : capture.state === 'finishing' ? 'Finishing…' : 'Connecting…')}</span></div>
+    </div><span className="bar-status" role="status">{error || (capture.state === 'recording' ? `${capture.purpose === 'dictation' ? 'Dictating' : 'Recording'} · ${Math.floor(capture.elapsed / 60)}:${String(Math.floor(capture.elapsed % 60)).padStart(2, '0')}` : capture.state === 'idle' ? (capture.message?.startsWith('Copied to clipboard.') ? 'Copied to clipboard' : 'Dictate to clipboard') : capture.state === 'paused' ? 'Paused · open notebook' : capture.state === 'finishing' ? 'Finishing…' : 'Connecting…')}</span></div>
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<Bar />);

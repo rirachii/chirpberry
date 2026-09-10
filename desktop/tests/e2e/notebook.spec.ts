@@ -1,3 +1,4 @@
+import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdtemp, readFile, rm, writeFile, readdir } from 'node:fs/promises';
@@ -22,28 +23,28 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await expect(page.getByRole('heading', { name: 'Start with what matters.' })).toBeVisible();
-    await page.getByRole('button', { name: 'New meeting', exact: true }).first().click();
-    await page.getByRole('textbox', { name: 'Meeting title' }).fill('Electron acceptance note');
+    await page.getByRole('button', { name: 'New note', exact: true }).first().click();
+    await page.getByRole('textbox', { name: 'Note title' }).fill('Electron acceptance note');
     await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original notes.\n讨论 Friday launch.');
     await page.getByRole('tab', { name: 'Summary', exact: true }).click();
     await page.getByRole('textbox', { name: 'Summary', exact: true }).fill('Summary stays separate.');
     // Compact layouts hide this label; autosave must still reach the saved state.
-    await expect(page.locator('.save-status')).toHaveText('Saved on this device');
+    await expect(page.locator('.save-status')).toHaveText('Saved');
     // Closing immediately after an edit must flush, without waiting for the debounce.
     await page.getByRole('textbox', { name: 'Summary', exact: true }).fill('Latest summary before close.');
     await app.close();
     app = await launch();
     page = await app.firstWindow();
-    await expect(page.getByRole('textbox', { name: 'Meeting title' })).toHaveValue('Electron acceptance note');
+    await expect(page.getByRole('textbox', { name: 'Note title' })).toHaveValue('Electron acceptance note');
     await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toHaveValue('Keep my original notes.\n讨论 Friday launch.');
     await page.getByRole('tab', { name: 'Summary', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Summary', exact: true })).toHaveValue('Latest summary before close.');
-    await page.getByRole('button', { name: 'Move note to trash', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Restore note', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Trash', exact: true }).click();
+    await noteAction(page, 'Move note to trash');
+    await expect(page.getByRole('button', { name: 'Restore', exact: true })).toBeVisible();
+    await page.getByRole('combobox', { name: 'Filter notes' }).selectOption('trash');
     await page.getByRole('button', { name: /Electron acceptance note/ }).click();
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
-    await page.getByRole('button', { name: /^All notes/ }).click();
+    await page.getByRole('combobox', { name: 'Filter notes' }).selectOption('all');
     await page.getByRole('textbox', { name: 'Search notes', exact: true }).fill('讨论');
     await expect(page.getByRole('button', { name: /Electron acceptance note/ })).toBeVisible();
     await page.getByRole('button', { name: 'Clear search' }).click();
@@ -52,7 +53,7 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     const invalidContents = '{"version":999}';
     await writeFile(invalidSource, invalidContents);
     await app.evaluate(({ dialog }, filename) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] }); }, invalidSource);
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await libraryAction(page, 'Import notes…');
     await expect(page.getByText('This file does not match the supported Chirpberry meeting format. The original file has been preserved.', { exact: true })).toBeVisible();
     expect(await readFile(invalidSource, 'utf8')).toBe(invalidContents);
     await page.screenshot({ path: info.outputPath('unsupported-import-preserved.png') });
@@ -65,14 +66,15 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     const sourceContents = JSON.stringify(fixture);
     await writeFile(source, sourceContents);
     await app.evaluate(({ dialog }, filename) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] }); }, source);
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
-    await expect(page.getByRole('textbox', { name: 'Meeting title' })).toHaveValue(fixture.title);
+    await libraryAction(page, 'Import notes…');
+    await expect(page.getByRole('textbox', { name: 'Note title' })).toHaveValue(fixture.title);
+    await expect(page.getByRole('complementary', { name: 'Transcript', exact: true })).not.toBeVisible();
+    await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
     await expect(page.getByText('We deliver on Friday. Thank you.', { exact: true })).toHaveCount(1);
     await page.getByRole('textbox', { name: 'Speaker name at 00:12, utterance 1' }).fill('Maya');
     const destination = path.join(root, 'export.json');
     await app.evaluate(({ dialog }, filename) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename }); }, destination);
-    await page.getByLabel('Export options', { exact: true }).click();
-    await page.getByRole('button', { name: 'Export Chirpberry JSON', exact: true }).click();
+    await noteAction(page, 'Export Chirpberry JSON');
     await expect(page.getByText('Chirpberry document exported.', { exact: true })).toBeVisible();
     const exported = JSON.parse(await readFile(destination, 'utf8'));
     expect(exported.id).not.toBe(fixture.id);
@@ -80,7 +82,6 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     expect(exported.segments[0].translation).toBe('We deliver on Friday. Thank you.');
     expect(await readFile(source, 'utf8')).toBe(sourceContents);
     await writeFile(info.outputPath('exported-bilingual-meeting.json'), JSON.stringify(exported, null, 2));
-    await page.getByLabel('Export options', { exact: true }).click();
     await page.getByRole('button', { name: 'Dismiss message' }).click();
     await page.getByRole('tab', { name: 'My notes', exact: true }).focus();
     await page.keyboard.press('ArrowRight');
@@ -92,6 +93,8 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     expect(result.violations).toEqual([]);
     const isolation = await page.evaluate(() => ({ node: typeof (window as any).require, process: typeof (window as any).process, api: typeof window.chirpberry.load }));
     expect(isolation).toEqual({ node: 'undefined', process: 'undefined', api: 'function' });
+    await page.screenshot({ path: info.outputPath('notebook-with-transcript.png') });
+    await page.getByRole('button', { name: 'Hide transcript', exact: true }).click();
     await page.screenshot({ path: info.outputPath('notebook-desktop.png') });
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'))!.setContentSize(780, 700));
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(780);
@@ -101,7 +104,7 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     const compact = await new AxeBuilder({ page }).setLegacyMode().analyze();
     expect(compact.violations).toEqual([]);
     await page.screenshot({ path: info.outputPath('notebook-compact-dark.png') });
-    await page.getByRole('button', { name: 'Dictate', exact: true }).click();
+    await noteAction(page, 'Dictate to clipboard');
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByText('OS integrations are disabled for this diagnostic session.', { exact: true })).toBeVisible();
     expect((await page.evaluate(() => window.chirpberry.runtime())).capture.state).toBe('idle');

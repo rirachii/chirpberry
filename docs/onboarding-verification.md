@@ -10,3 +10,7 @@ The `build/onboarding-journey` candidate adds a four-step first-run guide on top
 - The installed candidate was not replaced or quit. Its `app.asar` remained `d523064270a299a75553cf4a2eb21fe5f0e762fa7e5f4fc5886b162bc40e718f`.
 
 Live Valsea/OpenAI requests, OS consent on a clean install, real Calendar account behavior, real Zoom/Teams/browser detection accuracy, physical Fn use, and Windows/Linux device acceptance remain independent release gates. There is no public DMG or Homebrew cask. The separate public website guide must link to this candidate's published source commit and disclose the preview status.
+
+## Superseding release-review candidate
+
+The original `9b8f21b` artifacts above are held because they predate the final-audio drain and noninteractive startup fixes. Corrected source `040e04e` is merged into `main`, has green Mac/Windows/Linux CI, and passed packaged acceptance. See the [current artifact receipt](electron-candidate-artifacts.md). The public guide pins the corrected source; installers remain unpublished and the installed app remains untouched.

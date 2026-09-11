@@ -64,6 +64,8 @@ Unit/integration checks cover real file persistence, failures, cancellation, pha
 
 For packaged notebook acceptance, set `CHIRPBERRY_EXECUTABLE` to the executable and run `npx playwright test` from `desktop/`. On Mac: `release/mac-arm64/Chirpberry.app/Contents/MacOS/Chirpberry`. All fixture tests intentionally skip against production packages.
 
+For sustained local pipeline acceptance, build the fixture and run `npx tsx scripts/soak-recording.ts 300` from `desktop/`. This generates two PCM streams against a loopback server, checks Pause/Resume/Stop and exact persistence after relaunch, and samples Electron resources. Run it separately from other UI tests and builds; see [performance](../docs/performance.md) for the full command, evidence, and limits. It does not use real audio, credentials, or cloud services and is not part of the default CI suite.
+
 Run `node desktop/scripts/verify-mac-permissions.mjs desktop/release/mac-arm64/Chirpberry.app` from the repository root to verify Calendar/microphone purpose strings and actual signed entitlements in both the app and helper. Mac release preparation also checks the mounted DMG payload. This validates declarations, not a user's authorization or live capture.
 
 Use `npm run release:prepare --prefix desktop` only from a clean reviewed source commit. It refuses dirty or changed source and existing versioned release output, builds installers in fresh invocation-specific staging, verifies Mac DMG payload/signatures, and creates exact-source archives, manifests, and SHA-256 checksums. It does not publish or certify live acceptance. See [verification](../docs/verification.md), [migration acceptance](../docs/electron-migration.md), and [release procedure](../docs/releasing.md).

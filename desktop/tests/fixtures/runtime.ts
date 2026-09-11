@@ -3,10 +3,16 @@ import { MacAudioInput, NativeBridge } from '../../src/main/native';
 import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { OpenAIMeetingService } from '../../src/main/assistant-service';
+import { RealtimeSession } from '../../src/main/realtime';
 import { clipboard } from 'electron';
 // This module is compiled only into test-build/. Production imports the real runtime directly.
 const lifecycleDirectory = process.env.CHIRPBERRY_FIXTURE_LIFECYCLE_DIR;
 const assistantFixture = process.env.CHIRPBERRY_FIXTURE_ASSISTANT === '1';
+const soakURL = process.env.CHIRPBERRY_FIXTURE_SOAK_URL;
+if (soakURL) {
+  const url = new URL(soakURL);
+  if (url.protocol !== 'ws:' || url.hostname !== '127.0.0.1') throw new Error('The recording soak requires a loopback server.');
+}
 const recoveryDirectory = process.env.CHIRPBERRY_FIXTURE_RECOVERY_DIR;
 const recoveryBridge = recoveryDirectory ? new NativeBridge(process.env.CHIRPBERRY_FIXTURE_NODE_EXECUTABLE!,
   [path.resolve('tests/fixtures/native-helper.mjs'), path.join(recoveryDirectory, 'helper.jsonl'), 'hang-exit'], 150, true) : undefined;
@@ -46,7 +52,16 @@ const adapters: RuntimeAdapters = {
       if (assistantFixture) setTimeout(() => options.onEvent({ type: 'transcript.final', text: 'We agreed to ship the design on Friday. The budget still needs confirmation.', event_id: 'fixture-live-final', timestampMs: 1000 }), 120);
     },
     sendAudio: () => true, close: () => {}, finish: async () => { await new Promise(resolve => setTimeout(resolve, Number(process.env.CHIRPBERRY_FIXTURE_FINISH_DELAY_MS ?? 0))); options.onEvent({ type: 'transcript.final', text: 'Synthetic final speech.', event_id: 'fixture-final', timestampMs: 100 }); } }),
-  service: () => ({ format: async () => ({ markdown: 'Synthetic summary.', actions: [] }), transcribe: async () => 'Synthetic imported speech.' })
+  service: () => ({ format: async () => ({ markdown: 'Synthetic summary.', actions: [] }), transcribe: async () => 'Synthetic imported speech.' }),
+  ...(soakURL ? {
+    createAudio: () => {
+      let timer: ReturnType<typeof setInterval> | undefined;
+      return { start: async (systemAudio, pcm) => {
+        timer = setInterval(() => { pcm('Microphone', Buffer.alloc(3200), 0.2); if (systemAudio) pcm('System audio', Buffer.alloc(3200), 0.1); }, 100);
+      }, stop: async () => { clearInterval(timer); timer = undefined; } };
+    },
+    createStream: options => new RealtimeSession({ ...options, endpoint: soakURL })
+  } : {})
 };
 export class DesktopRuntime extends Runtime {
   constructor(...args: ConstructorParameters<typeof Runtime>) {

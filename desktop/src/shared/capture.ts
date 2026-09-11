@@ -18,7 +18,8 @@ export const settingsSchema = z.strictObject({
   dock: z.enum(['bottom', 'top', 'left', 'right']).default('bottom'), barVisible: z.boolean().default(true),
   shortcutsEnabled: z.boolean().default(false), disclosureAccepted: z.boolean().default(false),
   calendarEnabled: z.boolean().default(false), calendarReminders: z.boolean().default(false),
+  meetingDetectionEnabled: z.boolean().default(false),
   assistantDisclosureAccepted: z.boolean().default(false), assistantModel: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,99}$/).default('gpt-4.1-mini')
 });
 export type AppSettings = z.infer<typeof settingsSchema>;
-export type Capabilities = { microphone: boolean; systemAudio: boolean; fn: boolean; calendar: boolean; protectedCredentials: boolean; platform: string; shortcut?: string; problem?: string };
+export type Capabilities = { microphone: boolean; systemAudio: boolean; fn: boolean; calendar: boolean; meetingDetection?: boolean; protectedCredentials: boolean; platform: string; shortcut?: string; problem?: string };

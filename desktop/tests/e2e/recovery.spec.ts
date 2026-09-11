@@ -13,9 +13,9 @@ test('Calendar retry recovers a timed-out helper without restarting the app or r
   try {
     const page = await application.firstWindow();
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
-    await page.getByRole('button', { name: 'Connect calendars', exact: true }).click();
+    await page.getByRole('button', { name: 'Connect Apple Calendar', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('The Mac integration timed out.');
-    await page.getByRole('button', { name: 'Connect calendars', exact: true }).click();
+    await page.getByRole('button', { name: 'Connect Apple Calendar', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Your next seven days are clear.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Disconnect calendars' })).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);

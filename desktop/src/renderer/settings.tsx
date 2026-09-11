@@ -4,6 +4,7 @@ import type { RuntimeSnapshot } from '../shared/api';
 import type { AppSettings } from '../shared/capture';
 import type { Meeting } from '../shared/meeting';
 import { targets } from '../shared/meeting';
+import { DetectionSetting } from './meeting-detection';
 
 export function SettingsPanel({ runtime, onChange, onCreated, onUpcoming }: { runtime: RuntimeSnapshot; onChange(value: RuntimeSnapshot): void; onCreated(meeting: Meeting): void; onUpcoming(): void }) {
   const [form, setForm] = useState(runtime.settings);
@@ -64,11 +65,14 @@ export function SettingsPanel({ runtime, onChange, onCreated, onUpcoming }: { ru
         <label className="check-label"><input type="checkbox" checked={form.assistantDisclosureAccepted} onChange={event => edit({ assistantDisclosureAccepted: event.target.checked })} />Allow OpenAI processing when I ask about a meeting.</label>
       </div>
       <label>OpenAI model<input value={form.assistantModel} maxLength={100} onChange={event => edit({ assistantModel: event.target.value })} /></label>
+      <h3>Meeting suggestions</h3>
+      <DetectionSetting checked={form.meetingDetectionEnabled} available={!!runtime.capabilities.meetingDetection} disabled={busy}
+        error={runtime.detection.error} onChange={enabled => edit({ meetingDetectionEnabled: enabled })} />
       <label className="check-label"><input type="checkbox" checked={form.calendarReminders} onChange={event => edit({ calendarReminders: event.target.checked })} />Remind me two minutes before connected calendar meetings.</label>
       <div className="settings-actions"><button className="primary" type="submit" disabled={busy}>Save settings</button></div>
     </form>
     <hr /><h3><CalendarDays size={15} />Upcoming meetings</h3>
-    <p className="small">Upcoming shows the next seven days from calendars connected to this Mac, including Google, iCloud, or Exchange accounts added to macOS Calendar. Calendar access begins when you choose Connect calendars.</p>
+    <p className="small">Upcoming shows the next seven days from Apple Calendar, including Google, iCloud, or Exchange accounts already added to your Mac. Choose Connect Apple Calendar in Upcoming to allow access. No extra sign-in in Chirpberry.</p>
     <button className="secondary" onClick={onUpcoming}>Open Upcoming</button>
     <hr /><button className="secondary" onClick={() => void perform(() => window.chirpberry.showStorage())}><Folder size={16} />Open notebook folder</button>
     <p className="small muted settings-footnote">Electron release candidate · macOS builds are currently unnotarized. The original Mac app keeps its own documents. Close the notebook to stop capture and quit.</p>

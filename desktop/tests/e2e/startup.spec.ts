@@ -18,7 +18,7 @@ for (const connectedAtLaunch of [false, true]) test(`Calendar connection survive
     const page = await application.firstWindow();
     await expect.poll(() => existsSync(`${gate}.waiting`)).toBe(true);
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
-    if (!connectedAtLaunch) await page.getByRole('button', { name: 'Connect calendars', exact: true }).click();
+    if (!connectedAtLaunch) await page.getByRole('button', { name: 'Connect Apple Calendar', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Open note', exact: true })).toHaveCount(1);
     await writeFile(gate, '');
     await expect.poll(() => existsSync(`${gate}.completed`)).toBe(true);

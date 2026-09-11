@@ -62,7 +62,7 @@ final class Output: @unchecked Sendable {
         do {
             var result: Any = true
             switch command {
-            case "ping": result = ["version": 1, "microphone": true, "systemAudio": true, "calendar": true]
+            case "ping": result = ["version": 1, "microphone": true, "systemAudio": true, "calendar": true, "meetingDetection": true]
             case "credential.status": result = !(try ValseaKeychain.read()).isEmpty
             case "credential.read": result = try ValseaKeychain.read()
             case "credential.save":
@@ -83,6 +83,7 @@ final class Output: @unchecked Sendable {
                 result = ["fn": shortcuts.fnAvailable, "failures": failures]
             case "accessibility.request":
                 result = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+            case "meeting.detect": result = try MeetingActivity.activeSources()
             case "calendar.upcoming":
                 if arguments["requestPermission"] as? Bool == true {
                     guard try await calendar.requestFullAccessToEvents() else { throw CoreError.invalid("Calendar access is off.") }
@@ -115,6 +116,7 @@ final class Output: @unchecked Sendable {
             if command.hasPrefix("audio.") { await capture.stop(); message = "Capture could not start. Check Microphone and Screen & System Audio Recording permissions for Chirpberry Capture." }
             else if command.hasPrefix("credential.") { message = "Keychain could not access the Valsea key. Unlock your login keychain and try again." }
             else if command.hasPrefix("assistant-key.") { message = "Keychain could not access the OpenAI key. Unlock your login keychain and try again." }
+            else if command == "meeting.detect" { message = "Call activity is unavailable. Try again or start notes manually." }
             else if command.hasPrefix("calendar.") { message = "Calendar access is unavailable. Allow Chirpberry in System Settings → Privacy & Security → Calendars, then try again." }
             else { message = "The Mac integration could not complete this action." }
             _ = output.send(["id": id, "error": message])

@@ -4,6 +4,7 @@ import { BookOpen, CalendarDays, Check, ChevronDown, Copy, Download, FileText, F
 import type { Meeting, MeetingPatch } from '../shared/meeting';
 import { meetingSchema, serializeMeeting, searchableText, speakerKey, speakerName, timeLabel, timestamp } from '../shared/meeting';
 import type { RuntimeSnapshot, SaveStatus } from '../shared/api';
+import { MeetingSuggestion } from './meeting-detection';
 import type { CaptureSnapshot } from '../shared/capture';
 import { SettingsPanel } from './settings';
 import { ActionMenu, type MenuAction, type MenuPoint } from './action-menu';
@@ -183,7 +184,8 @@ function App() {
         </div>
       </header>
       {message && <div className="notice" role={save.state === 'error' ? 'alert' : 'status'}><span>{message}</span><button className="icon-button" aria-label="Dismiss message" onClick={() => setMessage('')}><X size={17} /></button></div>}
-      {upcoming ? <Upcoming runtime={runtime} onOpen={receive} /> : current ? <>
+      <MeetingSuggestion runtime={runtime} capturing={capturing} onSettings={() => setSettings(true)} onError={setMessage} />
+      {upcoming ? <Upcoming runtime={runtime} onOpen={receive} onSkip={() => setUpcoming(false)} /> : current ? <>
         <div className={`document-layout ${inspector || assistantOpen ? '' : 'without-transcript'}`}>
           <section className="document" aria-label="Meeting editor">
             {current.isTrashed && <div className="trash-notice"><Trash2 size={16} /><span>This note is in Trash.</span><button onClick={() => edit({ isTrashed: false })}>Restore</button></div>}

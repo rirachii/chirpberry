@@ -3,10 +3,12 @@ import { CalendarDays, ExternalLink, RefreshCw } from 'lucide-react';
 import type { RuntimeSnapshot } from '../shared/api';
 import type { Meeting } from '../shared/meeting';
 import { eventTiming, type CalendarSnapshot } from '../shared/calendar';
+import { DetectionSetting } from './meeting-detection';
 
-export function Upcoming({ runtime, onOpen }: { runtime?: RuntimeSnapshot; onOpen(meeting: Meeting): void }) {
+export function Upcoming({ runtime, onOpen, onSkip }: { runtime?: RuntimeSnapshot; onOpen(meeting: Meeting): void; onSkip(): void }) {
   const [snapshot, setSnapshot] = useState<CalendarSnapshot>({ connected: false, refreshing: false, events: [] });
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [now, setNow] = useState(Date.now());
+  const [detectionChoice, setDetectionChoice] = useState<boolean>();
   useEffect(() => {
     let live = true, revision = 0;
     const off = window.chirpberry.onCalendar(value => { revision++; if (live) setSnapshot(value); });
@@ -24,10 +26,13 @@ export function Upcoming({ runtime, onOpen }: { runtime?: RuntimeSnapshot; onOpe
     <div className="upcoming-heading"><div><p className="eyebrow">YOUR WEEK</p><h1>Upcoming</h1></div>
       {snapshot.connected && <button className="secondary" disabled={busy || snapshot.refreshing} onClick={() => void perform(async () => setSnapshot(await window.chirpberry.refreshCalendar()))}><RefreshCw size={14} />{snapshot.refreshing ? 'Refreshing…' : 'Refresh'}</button>}
     </div>
-    {!snapshot.connected ? <div className="calendar-connect"><CalendarDays size={30} strokeWidth={1.4} /><h2>A note for every meeting.</h2>
-      <p>Connect calendars already added to this Mac to see the next seven days. Google, iCloud, and Exchange calendars can connect through macOS Calendar.</p>
-      <p className="small muted">Chirpberry reads event details and refreshes them while open. Opening a note or a meeting link leaves recording off until you choose Record meeting.</p>
-      <button className="primary" disabled={busy || snapshot.refreshing || !runtime?.capabilities.calendar} onClick={() => void perform(async () => setSnapshot(await window.chirpberry.connectCalendar()))}>{snapshot.refreshing ? 'Connecting…' : 'Connect calendars'}</button>
+    {!snapshot.connected ? <div className="calendar-connect"><CalendarDays size={30} strokeWidth={1.4} /><h2>Your calendar, already here.</h2>
+      <p>See the next seven days from Apple Calendar. Google, iCloud, and Exchange accounts already added to your Mac work here too. No extra sign-in in Chirpberry.</p>
+      <p className="small muted">Allow Calendar access when macOS asks. Chirpberry only reads events; opening a note or joining a call keeps recording off.</p>
+      <div className="calendar-connect-actions"><button className="primary" disabled={busy || snapshot.refreshing || !runtime?.capabilities.calendar} onClick={() => void perform(async () => setSnapshot(await window.chirpberry.connectCalendar()))}>{snapshot.refreshing ? 'Connecting…' : 'Connect Apple Calendar'}</button>
+        {runtime?.capabilities.platform === 'darwin' && <button className="text-button" disabled={busy} onClick={() => void perform(() => window.chirpberry.openCalendarApp())}>Open Calendar app<ExternalLink size={13} /></button>}</div>
+      <p className="small muted calendar-account-help">Missing an account? Add it in Calendar → Add Account on your Mac, then connect here.</p>
+      <button className="text-button calendar-skip" onClick={onSkip}>Continue without a calendar</button>
       {runtime && !runtime.capabilities.calendar && <p className="small">Calendar connection is unavailable in this build or on this platform. Notes and recording remain available.</p>}
     </div> : <>
       <p className="upcoming-description">Open a note to prepare. Join the call when you’re ready.</p>
@@ -42,5 +47,12 @@ export function Upcoming({ runtime, onOpen }: { runtime?: RuntimeSnapshot; onOpe
       <button className="text-button disconnect-calendar" disabled={busy} onClick={() => void perform(async () => { await window.chirpberry.disconnectCalendar(); setSnapshot(await window.chirpberry.calendarSnapshot()); })}>Disconnect calendars</button>
     </>}
     {(snapshot.error || message) && <p className="inline-error" role="alert">{message || snapshot.error}</p>}
+    <div className="upcoming-detection"><h2>Meeting suggestions <span>Optional</span></h2>
+      <DetectionSetting checked={detectionChoice ?? runtime?.settings.meetingDetectionEnabled ?? false} available={!!runtime?.capabilities.meetingDetection} disabled={busy}
+        error={runtime?.detection.error} onChange={enabled => {
+          setDetectionChoice(enabled);
+          void perform(async () => { try { await window.chirpberry.setMeetingDetection(enabled); } finally { setDetectionChoice(undefined); } });
+        }} />
+    </div>
   </section>;
 }

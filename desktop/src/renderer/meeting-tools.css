@@ -77,3 +77,25 @@
   .calendar-connect { margin:30px auto; }
   .upcoming-event { gap:12px; }
 }
+
+.calendar-connect { margin:36px auto 28px; }
+.calendar-connect-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.calendar-connect .calendar-account-help { font-size:11px; margin:14px 0 8px; }
+.calendar-skip { padding-left:0; }
+.upcoming-detection { max-width:520px; margin:28px auto; border-top:1px solid var(--line); padding-top:24px; }
+.upcoming-detection h2 { font-size:14px; margin-bottom:16px; }
+.upcoming-detection h2 span { font-size:10px; font-weight:400; color:var(--muted); margin-left:8px; }
+.detection-setting .check-label { display:flex; align-items:flex-start; gap:8px; font-size:12px; line-height:1.5; }
+.detection-setting input { flex-shrink:0; margin-top:2px; accent-color:var(--accent); }
+.detection-setting p { font-size:11px; line-height:1.7; margin:10px 0 0; }
+.meeting-suggestion { flex-shrink:0; display:flex; gap:12px; align-items:center; padding:14px 22px; border-bottom:1px solid var(--line); background:var(--accent-soft); }
+.meeting-suggestion > svg { flex-shrink:0; color:var(--accent); }
+.suggestion-copy { flex:1; min-width:0; }
+.suggestion-copy p { font-size:11px; line-height:1.7; color:var(--muted); }
+.suggestion-copy strong { font-size:12px; color:var(--ink); font-weight:600; }
+.suggestion-actions { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+@media(max-width:900px) {
+  .meeting-suggestion { flex-wrap:wrap; padding:12px 20px; gap:10px; }
+  .suggestion-copy { flex-basis:calc(100% - 32px); }
+  .suggestion-actions { margin-left:29px; }
+}

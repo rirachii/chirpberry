@@ -54,12 +54,15 @@ test('request timeout teardown remains awaitable until the real helper exits', a
 
 test('integration retry after a permission timeout waits for teardown and uses one new helper', async t => {
   const { bridge, events } = await helper(t, 'hang-exit', true);
-  const first = await bridge.request<{ pid: number }>('ping');
+  assert.equal(bridge.busy, false);
+  const ping = bridge.request<{ pid: number }>('ping'); assert.equal(bridge.busy, true);
+  const first = await ping; assert.equal(bridge.busy, false);
   await assert.rejects(bridge.request('hang', {}, 30), /timed out/);
   const retried = await Promise.all([bridge.request<{ pid: number }>('ping'), bridge.request<{ pid: number }>('ping')]);
   assertExited(first.pid);
   assert.notEqual(retried[0].pid, first.pid);
   assert.equal(retried[0].pid, retried[1].pid);
+  assert.equal(bridge.busy, false);
   assert.equal((await events()).filter(event => event.event === 'started').length, 2);
   assert.equal((await events()).filter(event => event.command === 'hang').length, 1, 'A timed-out command must not be replayed');
   await bridge.destroy();

@@ -32,8 +32,8 @@ test('calendar to live AI to reviewed sharing, with independent cancellation and
     const page = await application.firstWindow(), errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Connect calendars', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Connect calendars', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Connect Apple Calendar', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Connect Apple Calendar', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Open note', exact: true })).toHaveCount(2);
     await expect(page.getByRole('button', { name: 'Join', exact: true })).toHaveCount(2);
     await page.screenshot({ path: info.outputPath('upcoming-meetings.png') });
@@ -113,9 +113,9 @@ test('calendar to live AI to reviewed sharing, with independent cancellation and
     expect((await new AxeBuilder({ page }).setLegacyMode().analyze()).violations).toEqual([]);
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await page.getByRole('button', { name: 'Disconnect calendars', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Connect calendars', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Connect Apple Calendar', exact: true })).toBeVisible();
     await writeFile(calendarFile, JSON.stringify({ error: 'Synthetic calendar permission denied.' }));
-    await page.getByRole('button', { name: 'Connect calendars', exact: true }).click();
+    await page.getByRole('button', { name: 'Connect Apple Calendar', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('Synthetic calendar permission denied.');
     expect(errors).toEqual([]);
   } finally { await application.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(root, { recursive: true, force: true }); }
@@ -149,7 +149,7 @@ test('production meeting tools preserve setup gates and deliver only the reviewe
     await page.screenshot({ path: info.outputPath('production-sharing.png') });
     await sharing.getByRole('button', { name: 'Close sharing' }).click();
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Connect calendars' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Connect Apple Calendar' })).toBeDisabled();
     await expect(page.getByText('Calendar connection is unavailable in this build or on this platform. Notes and recording remain available.')).toBeVisible();
     expect((await new AxeBuilder({ page }).setLegacyMode().analyze()).violations).toEqual([]);
   } finally { await application.close(); await rm(root, { recursive: true, force: true }); }

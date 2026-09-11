@@ -14,6 +14,7 @@ export class NativeBridge extends EventEmitter {
   private pending = new Map<string, { resolve(value: any): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
   constructor(readonly executable: string, private args: string[] = [], private terminationGraceMS = 1500, private recoverAfterFailure = false) { super(); }
   get running() { return !this.destroyed && !this.termination && !!this.child && this.child.exitCode === null && this.child.signalCode === null; }
+  get busy() { return this.pending.size > 0 || !!this.termination && !!this.child; }
   private start(command: string) {
     if (this.destroyed) throw new Error('The Mac integration was closed. Restart Chirpberry to reconnect it.');
     if (this.child) return;

@@ -15,6 +15,8 @@ import { RealtimeSession, type RealtimeOptions, type SpeechStream } from './real
 import { ValseaREST } from './rest';
 import { Companion } from './companion';
 import { CalendarTracker } from './calendar';
+import { MeetingDetection } from './meeting-detection';
+import { meetingSourceNames, type MeetingPrompt } from '../shared/meeting-detection';
 import { meetingURL } from '../shared/calendar';
 import { MeetingAssistant, OpenAIMeetingService, type AssistantService } from './assistant-service';
 import { shareContent, shareOptionsSchema, type SharePreview } from '../shared/share';
@@ -24,6 +26,8 @@ export type RuntimeAdapters = { native?: NativeBridge; credentials: Pick<Credent
   createAudio(): AudioInput; createStream(options: RealtimeOptions): SpeechStream;
   service(key: string): Pick<ValseaREST, 'format' | 'transcribe'>;
   calendar?(requestPermission: boolean): Promise<unknown>;
+  meetingActivity?(): Promise<unknown>;
+  detectionIntervalMs?: number;
   assistantCredentials?: Pick<Credentials, 'available' | 'read' | 'save' | 'status'>;
   assistant?(key: string): AssistantService };
 export class DesktopRuntime {
@@ -31,6 +35,10 @@ export class DesktopRuntime {
   readonly recording: RecordingController;
   readonly settings: SettingsStore;
   readonly calendarTracker: CalendarTracker;
+  readonly meetingDetection: MeetingDetection;
+  private detectionNotification?: Notification;
+  private detectionNotificationId?: string;
+  private detectedStartPending = false;
   readonly assistant: MeetingAssistant;
   private native?: NativeBridge;
   private credentials: Pick<Credentials, 'available' | 'read' | 'save' | 'status'>;
@@ -54,10 +62,10 @@ export class DesktopRuntime {
     this.assistantCredentials = adapters?.assistantCredentials ?? new Credentials(profile, this.native, disabled, 'assistant');
     this.capabilities = { platform: process.platform, microphone: !disabled, systemAudio: !disabled && ['darwin', 'win32'].includes(process.platform),
       fn: false, calendar: !!this.native, protectedCredentials: false, ...(disabled ? { problem: 'OS integrations are disabled for this diagnostic session.' } : {}) };
-    if (adapters) this.capabilities = { platform: process.platform, microphone: true, systemAudio: true, fn: false, calendar: !!adapters.calendar, protectedCredentials: true, problem: 'Synthetic test session. No real audio or provider connection.' };
+    if (adapters) this.capabilities = { platform: process.platform, microphone: true, systemAudio: true, fn: false, calendar: !!adapters.calendar, meetingDetection: !!adapters.meetingActivity, protectedCredentials: true, problem: 'Synthetic test session. No real audio or provider connection.' };
     this.recording = new RecordingController({ store, getKey: () => this.credentials.read(),
       createAudio: () => adapters ? adapters.createAudio() : this.native ? new MacAudioInput(this.nativePath) : new BrowserAudioInput(), createStream: options => adapters ? adapters.createStream(options) : new RealtimeSession(options),
-      copy: text => clipboard.writeText(text), changed: snapshot => { this.companion.capture(snapshot); this.broadcast('runtime:capture', snapshot); },
+      copy: text => clipboard.writeText(text), changed: snapshot => { this.meetingDetection?.captureChanged(); this.companion.capture(snapshot); this.broadcast('runtime:capture', snapshot); },
       meetingChanged: (meeting, fields) => this.broadcast('runtime:meeting', meeting, fields) });
     this.calendarTracker = new CalendarTracker({ load: requestPermission => {
       if (adapters?.calendar) return adapters.calendar(requestPermission);
@@ -68,6 +76,16 @@ export class DesktopRuntime {
       const notification = new Notification({ title: 'Meeting coming up', body: event.title.slice(0, 200), silent: true });
       notification.on('click', () => { this.notebook()?.show(); this.notebook()?.focus(); }); notification.show();
     } });
+    this.meetingDetection = new MeetingDetection({
+      canProbe: () => !!adapters?.meetingActivity || !this.native?.busy,
+      probe: () => adapters?.meetingActivity ? adapters.meetingActivity() : this.native!.request('meeting.detect', {}, 3000),
+      captureActive: () => this.recording.active,
+      changed: () => {
+        if (this.detectionNotificationId && !this.meetingDetection.current(this.detectionNotificationId)) this.closeDetectionNotification();
+        this.broadcast('runtime:changed', this.snapshot());
+      },
+      notify: prompt => this.notifyMeeting(prompt), ...(adapters?.detectionIntervalMs ? { intervalMs: adapters.detectionIntervalMs } : {})
+    });
     this.assistant = new MeetingAssistant({ meeting: id => this.store.get(id), configuration: () => ({
       accepted: this.settings.get().assistantDisclosureAccepted, model: this.settings.get().assistantModel }),
       service: async () => { const key = await this.assistantCredentials.read(); return adapters?.assistant?.(key) ?? new OpenAIMeetingService(key); },
@@ -76,8 +94,9 @@ export class DesktopRuntime {
   async initialize() {
     await this.settings.load();
     if (this.native) {
-      try { await access(this.native.executable); await this.native.request('ping', {}, 10000); }
-      catch { this.capabilities.microphone = false; this.capabilities.systemAudio = false; this.capabilities.calendar = false;
+      try { await access(this.native.executable); const result = await this.native.request<{ meetingDetection?: boolean }>('ping', {}, 10000);
+        this.capabilities.meetingDetection = this.adapters ? !!this.adapters.meetingActivity : result.meetingDetection === true; }
+      catch { this.capabilities.microphone = false; this.capabilities.systemAudio = false; this.capabilities.calendar = false; this.capabilities.meetingDetection = false;
         this.capabilities.problem = 'The Mac capture helper is unavailable. Rebuild or reinstall Chirpberry for macOS 26.'; }
       this.native.on('shortcut', event => { if (event.action === 1) void this.shortcut('dictation'); if (event.action === 2) void this.shortcut('meeting'); if (event.action === 3) void this.shortcut('scratchpad'); });
       this.native.on('failure', () => {
@@ -92,8 +111,9 @@ export class DesktopRuntime {
     catch { this.capabilities.problem = 'The saved Valsea key could not be unlocked. Check Settings.'; }
     try { this.assistantKeySaved = this.assistantCredentials.available() && await this.assistantCredentials.status(); } catch { this.assistantKeySaved = false; }
     this.configureCalendar();
+    this.configureDetection();
   }
-  snapshot(): RuntimeSnapshot { return { settings: this.settings.get(), capabilities: { ...this.capabilities }, keySaved: this.keySaved, assistantKeySaved: this.assistantKeySaved, capture: this.recording.snapshot() }; }
+  snapshot(): RuntimeSnapshot { return { settings: this.settings.get(), capabilities: { ...this.capabilities }, keySaved: this.keySaved, assistantKeySaved: this.assistantKeySaved, capture: this.recording.snapshot(), detection: this.meetingDetection.snapshot() }; }
   private sendToNotebook(channel: string, value: unknown) {
     const window = this.notebook();
     if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send(channel, value);
@@ -130,6 +150,36 @@ export class DesktopRuntime {
     const enabled = this.settings.get().calendarEnabled, wasConnected = this.calendarTracker.snapshot().connected;
     this.calendarTracker.activate(enabled);
     if (enabled && !wasConnected) void this.calendarTracker.refresh();
+  }
+  private configureDetection() {
+    this.meetingDetection.setEnabled(!!this.capabilities.meetingDetection && this.settings.get().meetingDetectionEnabled);
+  }
+  private closeDetectionNotification() {
+    this.detectionNotification?.close(); this.detectionNotification = undefined; this.detectionNotificationId = undefined;
+  }
+  private notifyMeeting(prompt: MeetingPrompt) {
+    this.closeDetectionNotification();
+    if (this.adapters || !Notification.isSupported()) return;
+    const notification = new Notification({ title: `Possible call in ${meetingSourceNames[prompt.source]}`,
+      body: 'Open Chirpberry to start notes. Recording is off.', silent: true });
+    this.detectionNotification = notification; this.detectionNotificationId = prompt.id;
+    notification.on('click', () => {
+      if (!this.stopped && this.meetingDetection.current(prompt.id)) { this.notebook()?.show(); this.notebook()?.focus(); }
+    });
+    notification.show();
+  }
+  private async startDetectedMeeting(id: string) {
+    if (this.detectedStartPending) throw new Error('This call suggestion is already being opened.');
+    this.assertDisclosure();
+    if (!this.keySaved) throw new Error('Add your Valsea API key in Settings.');
+    if (this.stopped || !this.capabilities.microphone) throw new Error('Audio capture is unavailable.');
+    this.meetingDetection.consume(id);
+    this.detectedStartPending = true;
+    try {
+      const meeting = await this.store.create('meeting');
+      if (this.stopped || this.recording.active) throw new Error('Another recording has started. Your new note is saved.');
+      this.select(meeting, true); await this.start(meeting.id, 'meeting');
+    } finally { this.detectedStartPending = false; }
   }
   private assertDisclosure() { if (!this.settings.get().disclosureAccepted) throw new Error('Review and accept the cloud processing disclosure in Settings first.'); }
   private async start(id: string, purpose: 'meeting' | 'dictation') {
@@ -174,6 +224,7 @@ export class DesktopRuntime {
       const calendarEnabled = this.settings.get().calendarEnabled;
       await this.settings.save(input);
       if (calendarEnabled !== this.settings.get().calendarEnabled) this.configureCalendar();
+      this.configureDetection();
       if (!this.settings.get().disclosureAccepted) await this.recording.stop({ deliver: false });
       if (!this.settings.get().assistantDisclosureAccepted) this.assistant.cancel();
       await this.configure(); return this.snapshot();
@@ -214,10 +265,24 @@ export class DesktopRuntime {
     handle('runtime:summarize', id => this.summarize(uuid.parse(id)));
     handle('runtime:import-audio', () => this.importAudio());
     handle('runtime:calendar', async () => (await this.connectCalendar()).events);
+    handle('detection:enable', async input => {
+      const enabled = z.boolean().parse(input);
+      if (enabled && !this.capabilities.meetingDetection) throw new Error('Call suggestions are unavailable in this build or on this platform.');
+      await this.settings.patch({ meetingDetectionEnabled: enabled });
+      this.configureDetection(); this.broadcast('runtime:changed', this.snapshot()); return this.snapshot();
+    });
+    handle('detection:dismiss', id => this.meetingDetection.dismiss(z.string().uuid().parse(id)));
+    handle('detection:start', id => this.startDetectedMeeting(z.string().uuid().parse(id)));
+    handle('calendar:open-app', async () => {
+      if (process.platform !== 'darwin') throw new Error('Apple Calendar is available on macOS.');
+      if (this.adapters) return;
+      const error = await shell.openPath('/System/Applications/Calendar.app');
+      if (error) throw new Error('Open Calendar from your Applications folder to add an account.');
+    });
     handle('calendar:load', () => this.calendarTracker.snapshot());
     handle('calendar:connect', () => this.connectCalendar());
     handle('calendar:refresh', () => this.calendarTracker.refresh());
-    handle('calendar:disconnect', async () => { this.calendarTracker.activate(false); await this.settings.save({ ...this.settings.get(), calendarEnabled: false }); this.broadcast('runtime:changed', this.snapshot()); });
+    handle('calendar:disconnect', async () => { this.calendarTracker.activate(false); await this.settings.patch({ calendarEnabled: false }); this.broadcast('runtime:changed', this.snapshot()); });
     handle('calendar:join', async id => {
       const event = this.calendarTracker.event(z.string().max(4096).parse(id)), url = meetingURL(event?.joinURL);
       if (!url) throw new Error('This event has no available meeting link. Refresh Upcoming.');
@@ -227,7 +292,7 @@ export class DesktopRuntime {
   }
   private async connectCalendar() {
     const snapshot = await this.calendarTracker.refresh(true);
-    if (snapshot.connected && !snapshot.error) { await this.settings.save({ ...this.settings.get(), calendarEnabled: true }); this.broadcast('runtime:changed', this.snapshot()); }
+    if (snapshot.connected && !snapshot.error) { await this.settings.patch({ calendarEnabled: true }); this.broadcast('runtime:changed', this.snapshot()); }
     return snapshot;
   }
   private prepareEvent(id: string): Promise<Meeting> {
@@ -279,5 +344,5 @@ export class DesktopRuntime {
     if (patch.isTrashed === true) this.assistant.clear(id);
   }
   async closeCapture() { this.assistant.cancel(); for (const request of this.requests) request.abort(); await this.recording.stop({ deliver: false }); }
-  async shutdown() { this.stopped = true; this.calendarTracker.shutdown(); this.assistant.shutdown(); this.sharePreview = undefined; await this.closeCapture(); globalShortcut.unregisterAll(); this.companion.destroy(); this.native?.removeAllListeners(); await this.native?.destroy(); }
+  async shutdown() { this.stopped = true; this.meetingDetection.shutdown(); this.closeDetectionNotification(); this.calendarTracker.shutdown(); this.assistant.shutdown(); this.sharePreview = undefined; await this.closeCapture(); globalShortcut.unregisterAll(); this.companion.destroy(); this.native?.removeAllListeners(); await this.native?.destroy(); }
 }

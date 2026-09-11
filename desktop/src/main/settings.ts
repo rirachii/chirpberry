@@ -19,7 +19,16 @@ export class SettingsStore {
   get(): AppSettings { return structuredClone(this.value); }
   async save(input: unknown) {
     const value = settingsSchema.parse(input);
-    const write = this.writes.catch(() => {}).then(async () => { await atomicWrite(path.join(this.directory, 'settings.json'), JSON.stringify(value, null, 2)); this.value = value; });
+    return this.enqueue(() => value);
+  }
+  async patch(input: Partial<AppSettings>) {
+    return this.enqueue(() => settingsSchema.parse({ ...this.value, ...input }));
+  }
+  private async enqueue(next: () => AppSettings) {
+    const write = this.writes.catch(() => {}).then(async () => {
+      const value = next();
+      await atomicWrite(path.join(this.directory, 'settings.json'), JSON.stringify(value, null, 2)); this.value = value;
+    });
     this.writes = write; await write; return this.get();
   }
 }

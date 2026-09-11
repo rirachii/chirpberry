@@ -4,10 +4,11 @@ import type { CalendarEvent, CalendarSnapshot } from './calendar';
 import type { AskRequest, AssistantAnswer } from './assistant';
 import type { ShareOptions, SharePreview } from './share';
 export type { CalendarEvent } from './calendar';
+import type { DetectionSnapshot } from './meeting-detection';
 
 export type SaveStatus = { state: 'saved' | 'saving' | 'error'; message?: string };
 export type NotebookSnapshot = { meetings: Meeting[]; unreadable: string[]; platform: string };
-export type RuntimeSnapshot = { settings: AppSettings; capabilities: Capabilities; keySaved: boolean; assistantKeySaved: boolean; capture: CaptureSnapshot };
+export type RuntimeSnapshot = { settings: AppSettings; capabilities: Capabilities; keySaved: boolean; assistantKeySaved: boolean; capture: CaptureSnapshot; detection: DetectionSnapshot };
 export interface NotebookAPI {
   load(): Promise<NotebookSnapshot>;
   create(kind: 'meeting' | 'scratchpad'): Promise<Meeting>;
@@ -39,6 +40,10 @@ export interface NotebookAPI {
   calendarSnapshot(): Promise<CalendarSnapshot>;
   connectCalendar(): Promise<CalendarSnapshot>;
   disconnectCalendar(): Promise<void>;
+  openCalendarApp(): Promise<void>;
+  setMeetingDetection(enabled: boolean): Promise<RuntimeSnapshot>;
+  dismissMeetingPrompt(id: string): Promise<void>;
+  startDetectedMeeting(id: string): Promise<void>;
   refreshCalendar(): Promise<CalendarSnapshot>;
   joinEvent(id: string): Promise<void>;
   prepareEvent(event: CalendarEvent): Promise<Meeting>;

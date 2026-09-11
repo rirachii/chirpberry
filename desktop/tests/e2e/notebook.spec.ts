@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -17,8 +18,9 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
   try {
     app = await launch();
     let page = await app.firstWindow();
+    await skipOnboarding(page);
     // Exercise autosave at a compact width, as on smaller CI displays.
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 700));
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'))!.setContentSize(1000, 700));
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1000);
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -35,6 +37,7 @@ test('real Electron notebook: edit, restart, import, search, export, trash, keyb
     await app.close();
     app = await launch();
     page = await app.firstWindow();
+    await skipOnboarding(page);
     await expect(page.getByRole('textbox', { name: 'Note title' })).toHaveValue('Electron acceptance note');
     await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toHaveValue('Keep my original notes.\n讨论 Friday launch.');
     await page.getByRole('tab', { name: 'Summary', exact: true }).click();

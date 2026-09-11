@@ -41,6 +41,8 @@ Linux currently offers microphone capture; system audio and calendars are unavai
 
 ## Storage and OS setup
 
+New profiles open a four-step **Quick start guide**: notebook basics, optional speech/key and disclosure setup, optional Apple Calendar and call suggestions, then a first note. **Set up later** goes straight to the notebook. Quitting halfway through preserves the current step; Settings → **Quick start guide** reopens it. Existing profiles do not automatically enter the tour. Completing setup or creating a note never records audio. All optional features can be left off.
+
 Open Settings, save your Valsea API key, accept the recording/cloud-processing disclosure, and save settings. On Mac an existing Chirpberry Keychain item can supply the key, subject to macOS granting the rebuilt helper access. Start Dictate to clipboard from Note actions or the companion, or choose Record meeting, and respond to the OS microphone prompt. Enable system audio only for a consented meeting and authorize the corresponding OS prompt. Enable global shortcuts separately; for Fn, use Enable Fn Accessibility access, grant access in System Settings, then return and save settings to retry registration. A successful shortcut registration does not verify a physical Fn tap outside the app.
 
 The bundle identity is `com.rirachii.chirpberry.desktop`, product name **Chirpberry**, with `Chirpberry Desktop/Meetings` under Electron's application-data directory. The original native app and the removed Preview have separate profiles. Do not point this candidate at either original document store; use Import.

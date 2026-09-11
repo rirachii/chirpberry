@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -12,6 +13,7 @@ async function launch() {
     CHIRPBERRY_PROFILE_DIR: path.join(root, 'profile'), CHIRPBERRY_DOCUMENTS_DIR: path.join(root, 'documents'),
     CHIRPBERRY_DISABLE_OS_INTEGRATIONS: '1', CHIRPBERRY_FIXTURE_CONNECT_DELAY_MS: '1500', CHIRPBERRY_FIXTURE_FINISH_DELAY_MS: '2000' } });
   const page = await application.firstWindow();
+  await skipOnboarding(page);
   await page.getByRole('button', { name: 'New note', exact: true }).first().click();
   await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toBeVisible();
   return { application, page, root };

@@ -5,6 +5,7 @@ import type { AskRequest, AssistantAnswer } from './assistant';
 import type { ShareOptions, SharePreview } from './share';
 export type { CalendarEvent } from './calendar';
 import type { DetectionSnapshot } from './meeting-detection';
+import type { OnboardingStep } from './onboarding';
 
 export type SaveStatus = { state: 'saved' | 'saving' | 'error'; message?: string };
 export type NotebookSnapshot = { meetings: Meeting[]; unreadable: string[]; platform: string };
@@ -19,6 +20,7 @@ export interface NotebookAPI {
   showStorage(): Promise<void>;
   runtime(): Promise<RuntimeSnapshot>;
   saveSettings(settings: AppSettings): Promise<RuntimeSnapshot>;
+  configureOnboarding(input: { step?: OnboardingStep; disclosureAccepted?: boolean }): Promise<RuntimeSnapshot>;
   saveKey(key: string): Promise<boolean>;
   saveAssistantKey(key: string): Promise<boolean>;
   ask(request: AskRequest): Promise<void>;

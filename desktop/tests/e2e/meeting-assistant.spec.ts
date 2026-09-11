@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createServer } from 'node:http';
@@ -30,6 +31,7 @@ test('calendar to live AI to reviewed sharing, with independent cancellation and
     CHIRPBERRY_FIXTURE_ASSISTANT: '1', CHIRPBERRY_FIXTURE_CALENDAR_FILE: calendarFile, CHIRPBERRY_FIXTURE_AI_URL: `http://127.0.0.1:${address.port}/v1/responses` } });
   try {
     const page = await application.firstWindow(), errors: string[] = [];
+    await skipOnboarding(page);
     page.on('pageerror', error => errors.push(error.message));
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Connect Apple Calendar', exact: true })).toBeVisible();
@@ -128,6 +130,7 @@ test('production meeting tools preserve setup gates and deliver only the reviewe
     env: { ...process.env, CHIRPBERRY_PROFILE_DIR: path.join(root, 'profile'), CHIRPBERRY_DOCUMENTS_DIR: path.join(root, 'documents'), CHIRPBERRY_DISABLE_OS_INTEGRATIONS: '1' } });
   try {
     const page = await application.firstWindow();
+    await skipOnboarding(page);
     await page.getByRole('button', { name: 'New note', exact: true }).first().click();
     await page.getByRole('textbox', { name: 'Note title' }).fill('Production tools acceptance');
     await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Private preparation stays separate.');

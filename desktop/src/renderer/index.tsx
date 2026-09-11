@@ -7,6 +7,7 @@ import type { RuntimeSnapshot, SaveStatus } from '../shared/api';
 import { MeetingSuggestion } from './meeting-detection';
 import type { CaptureSnapshot } from '../shared/capture';
 import { SettingsPanel } from './settings';
+import { Onboarding } from './onboarding';
 import { ActionMenu, type MenuAction, type MenuPoint } from './action-menu';
 import { AssistantPanel } from './assistant';
 import { Upcoming } from './upcoming';
@@ -33,6 +34,7 @@ function App() {
   const [searchRequest, setSearchRequest] = useState(0);
   const [contextMenu, setContextMenu] = useState<MenuPoint>();
   const [settings, setSettings] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [save, setSave] = useState<SaveStatus>({ state: 'saved' });
   const [runtime, setRuntime] = useState<RuntimeSnapshot>();
@@ -227,8 +229,10 @@ function App() {
       </div>}
     </main>
     <dialog className="settings-dialog" ref={dialog} aria-labelledby="settings-title" onClose={() => setSettings(false)}><div className="dialog-header"><h2 id="settings-title">Chirpberry Settings</h2><button className="icon-button" aria-label="Close settings" onClick={() => setSettings(false)}><X size={20} /></button></div>
-      {settings && runtime ? <SettingsPanel runtime={{ ...runtime, capture }} onChange={setRuntime} onCreated={meeting => { receive(meeting); setSettings(false); }} onUpcoming={() => { setSettings(false); setUpcoming(true); }} /> : <p>Loading settings…</p>}
+      {settings && runtime ? <SettingsPanel runtime={{ ...runtime, capture }} onChange={setRuntime} onCreated={meeting => { receive(meeting); setSettings(false); }} onUpcoming={() => { setSettings(false); setUpcoming(true); }} onGuide={() => { setSettings(false); setGuideOpen(true); }} /> : <p>Loading settings…</p>}
     </dialog>
+    {runtime && capture.state === 'idle' && !settings && (runtime.settings.onboardingStep !== 'complete' || guideOpen) && <Onboarding runtime={runtime}
+      replay={runtime.settings.onboardingStep === 'complete'} onChange={setRuntime} onClose={() => setGuideOpen(false)} onCreate={() => create()} />}
     {sharing && current && <ShareDialog key={current.id} meetingId={current.id} onClose={() => setSharing(false)} />}
   </div>;
 }

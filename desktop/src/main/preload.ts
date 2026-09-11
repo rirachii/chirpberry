@@ -11,6 +11,7 @@ const api: NotebookAPI = {
   showStorage: () => ipcRenderer.invoke('notebook:storage'),
   runtime: () => ipcRenderer.invoke('runtime:load'),
   saveSettings: settings => ipcRenderer.invoke('runtime:settings', settings),
+  configureOnboarding: input => ipcRenderer.invoke('onboarding:update', input),
   saveKey: key => ipcRenderer.invoke('runtime:key', key),
   saveAssistantKey: key => ipcRenderer.invoke('assistant:key', key),
   ask: request => ipcRenderer.invoke('assistant:ask', request),

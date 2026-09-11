@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -15,6 +16,7 @@ async function launch(mode = 'hang-exit') {
   const closedApplication = new Promise<void>(resolve => application.once('close', () => { closed = true; resolve(); }));
   const clipboardLog = path.join(root, 'clipboard.json');
   const page = await application.firstWindow();
+  await skipOnboarding(page);
   await libraryAction(page, 'New scratchpad');
   await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Original notes');
   await page.getByRole('textbox', { name: 'My notes', exact: true }).blur();

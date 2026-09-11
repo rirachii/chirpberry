@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -16,6 +17,7 @@ for (const connectedAtLaunch of [false, true]) test(`Calendar connection survive
     CHIRPBERRY_FIXTURE_ASSISTANT: '1', CHIRPBERRY_FIXTURE_CALENDAR_FILE: calendarFile, CHIRPBERRY_FIXTURE_STARTUP_GATE: gate } });
   try {
     const page = await application.firstWindow();
+    await skipOnboarding(page);
     await expect.poll(() => existsSync(`${gate}.waiting`)).toBe(true);
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     if (!connectedAtLaunch) await page.getByRole('button', { name: 'Connect Apple Calendar', exact: true }).click();
@@ -36,6 +38,7 @@ for (const trigger of ['early-frame', 'companion-focused']) test(`Search command
       CHIRPBERRY_PROFILE_DIR: path.join(root, 'profile'), CHIRPBERRY_DOCUMENTS_DIR: path.join(root, 'documents'), CHIRPBERRY_DISABLE_OS_INTEGRATIONS: '1' } });
   try {
     const page = await application.firstWindow();
+    await skipOnboarding(page);
     await page.getByRole('button', { name: 'Hide sidebar' }).click();
     await expect(page.getByRole('textbox', { name: 'Search notes' })).not.toBeVisible();
     if (trigger === 'early-frame') {

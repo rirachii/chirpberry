@@ -51,3 +51,7 @@ Scratchpad is a separate, resizable native window with a collapsible note list, 
 Use Notes and Summary as separate versions. Formatting inserts Markdown at the selection and supports native Undo.
 The supplied Wispr Flow screenshots establish the quick-access workflow; keep Chirpberry's branding, single capsule composition, copy, and implementation original.
 See docs/desktop-companion.md for capture, permission, persistence, and shortcut contracts.
+
+## First-run journey
+
+A compact modal introduces four steps: notebook, optional speech, optional meetings, and a first note. Keep one primary next action, Back, and a persistent skip/close option. Show explicit cloud costs and an unchecked disclosure; never auto-record or request OS permissions on launch. Calendar connection and local call suggestions require their own actions. The finishing action creates a real empty note and focuses the editor. Existing profiles retain their notebook workflow; the guide is replayable from Settings. Preserve keyboard focus, native dialog containment, light/dark contrast, and a reachable footer in compact windows.

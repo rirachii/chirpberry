@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -19,6 +20,7 @@ for (const outcome of ['resolve', 'reject', 'quit'] as const) {
     const closedApplication = new Promise<void>(resolve => application.once('close', () => { closed = true; resolve(); }));
     try {
       const page = await application.firstWindow();
+      await skipOnboarding(page);
       await libraryAction(page, 'New scratchpad');
       await page.getByRole('textbox', { name: 'Note title' }).fill(`Synthetic clipboard ${outcome}`);
       await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original notes.');

@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { safeStorage } from 'electron';
-import { settingsSchema, type AppSettings } from '../shared/capture';
+import { settingsSchema, readStoredSettings, type AppSettings } from '../shared/capture';
 import { atomicWrite } from './store';
 import type { NativeBridge } from './native';
 
@@ -13,7 +13,7 @@ export class SettingsStore {
     try {
       const filename = path.join(this.directory, 'settings.json');
       if ((await stat(filename)).size > 32768) throw new Error();
-      this.value = settingsSchema.parse(JSON.parse(await readFile(filename, 'utf8')));
+      this.value = readStoredSettings(JSON.parse(await readFile(filename, 'utf8')));
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Settings could not be read. The original settings file has been preserved.'); }
   }
   get(): AppSettings { return structuredClone(this.value); }

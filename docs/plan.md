@@ -40,3 +40,7 @@ No claim of complete competitor parity or superior accuracy should appear in mar
 Real Valsea success and error tests are distinct from recorded protocol fixtures.
 A missing credential does not count as a passed integration test.
 Code signing, Apple notarization, tested OS versions, GitHub publication, Homebrew install, and Vercel deployment must each be reported independently.
+
+## First-run onboarding and public guide
+
+Implemented a skippable, resumable Electron welcome journey with optional speech/key setup and disclosure, Apple Calendar, local call suggestions, and a first note. Users can reopen it in Settings. Acceptance covers legacy profiles, skip/resume/restart, manual-note persistence, Calendar failure/retry, compact/dark accessibility, and zero audio starts during setup using synthetic adapters. Public website onboarding lives in the separate Chirpberry redesign repository; its deployment does not publish a desktop binary. Live OS/provider/call and clean-install release gates remain separate.

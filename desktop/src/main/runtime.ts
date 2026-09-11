@@ -17,6 +17,7 @@ import { Companion } from './companion';
 import { CalendarTracker } from './calendar';
 import { MeetingDetection } from './meeting-detection';
 import { meetingSourceNames, type MeetingPrompt } from '../shared/meeting-detection';
+import { onboardingUpdateSchema } from '../shared/onboarding';
 import { meetingURL } from '../shared/calendar';
 import { MeetingAssistant, OpenAIMeetingService, type AssistantService } from './assistant-service';
 import { shareContent, shareOptionsSchema, type SharePreview } from '../shared/share';
@@ -220,6 +221,14 @@ export class DesktopRuntime {
   }
   register(handle: Handler) {
     handle('runtime:load', () => this.snapshot());
+    handle('onboarding:update', async input => {
+      if (this.recording.active) throw new Error('Finish recording before changing quick-start setup.');
+      const update = onboardingUpdateSchema.parse(input);
+      await this.settings.patch({ ...(update.step ? { onboardingStep: update.step } : {}),
+        ...(update.disclosureAccepted !== undefined ? { disclosureAccepted: update.disclosureAccepted } : {}) });
+      if (!this.settings.get().disclosureAccepted) await this.recording.stop({ deliver: false });
+      this.broadcast('runtime:changed', this.snapshot()); return this.snapshot();
+    });
     handle('runtime:settings', async input => {
       const calendarEnabled = this.settings.get().calendarEnabled;
       await this.settings.save(input);

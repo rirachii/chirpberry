@@ -6,7 +6,7 @@ import type { Meeting } from '../shared/meeting';
 import { targets } from '../shared/meeting';
 import { DetectionSetting } from './meeting-detection';
 
-export function SettingsPanel({ runtime, onChange, onCreated, onUpcoming }: { runtime: RuntimeSnapshot; onChange(value: RuntimeSnapshot): void; onCreated(meeting: Meeting): void; onUpcoming(): void }) {
+export function SettingsPanel({ runtime, onChange, onCreated, onUpcoming, onGuide }: { runtime: RuntimeSnapshot; onChange(value: RuntimeSnapshot): void; onCreated(meeting: Meeting): void; onUpcoming(): void; onGuide(): void }) {
   const [form, setForm] = useState(runtime.settings);
   const [key, setKey] = useState('');
   const [assistantKey, setAssistantKey] = useState('');
@@ -20,6 +20,7 @@ export function SettingsPanel({ runtime, onChange, onCreated, onUpcoming }: { ru
     finally { setBusy(false); }
   }
   return <div className="settings-panel">
+    <button className="secondary" disabled={runtime.capture.state !== 'idle'} onClick={onGuide}>Quick start guide</button>
     <p>Notes stay on this device. Use Import to copy documents from the original Mac app into this notebook.</p>
     {runtime.capabilities.problem && <p className="settings-warning" role="status">{runtime.capabilities.problem}</p>}
     <h3><KeyRound size={15} />Valsea account</h3>

@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -12,6 +13,7 @@ test('Calendar retry recovers a timed-out helper without restarting the app or r
   const events = async (): Promise<{ pid: number; command?: string; event: string }[]> => (await readFile(path.join(root, 'helper.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
   try {
     const page = await application.firstWindow();
+    await skipOnboarding(page);
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await page.getByRole('button', { name: 'Connect Apple Calendar', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('The Mac integration timed out.');

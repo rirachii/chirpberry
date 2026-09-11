@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -12,8 +13,9 @@ test('focused notebook keeps creation, menus, organization and search accessible
       CHIRPBERRY_PROFILE_DIR: path.join(root, 'profile'), CHIRPBERRY_DOCUMENTS_DIR: path.join(root, 'documents'), CHIRPBERRY_DISABLE_OS_INTEGRATIONS: '1' } });
   try {
     const page = await application.firstWindow();
+    await skipOnboarding(page);
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-    await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1000, 740));
+    await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'))!.setContentSize(1000, 740));
     await page.getByRole('button', { name: 'New note', exact: true }).first().click();
     await expect(page.getByRole('textbox', { name: 'My notes', exact: true })).toBeFocused();
     await expect(page.getByRole('complementary', { name: 'Transcript', exact: true })).not.toBeVisible();
@@ -31,7 +33,7 @@ test('focused notebook keeps creation, menus, organization and search accessible
     // Playwright key injection stays in Chromium, so invoke the real native menu item.
     await application.evaluate(({ Menu, BrowserWindow }) => {
       const item = Menu.getApplicationMenu()!.items.find(item => item.label === 'View')!.submenu!.items.find(item => item.label === 'Search notes')!;
-      item.click(item, BrowserWindow.getAllWindows()[0], { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, triggeredByAccelerator: false });
+      item.click(item, BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'))!, { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, triggeredByAccelerator: false });
     });
     await expect(page.getByRole('textbox', { name: 'Search notes' })).toBeFocused();
     await page.getByRole('button', { name: 'Note actions', exact: true }).focus();

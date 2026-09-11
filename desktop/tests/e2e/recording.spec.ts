@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { noteAction, libraryAction } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -11,7 +12,8 @@ test('synthetic Electron recording: disclosure, partials, pause, final clipboard
   let originalClipboard = '';
   try {
     originalClipboard = await application.evaluate(({ clipboard }) => clipboard.readText());
-    const page = await application.firstWindow(); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    const page = await application.firstWindow();
+    await skipOnboarding(page); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await libraryAction(page, 'New scratchpad');
     await page.getByRole('textbox', { name: 'My notes', exact: true }).fill('Keep my original thought.');
     await noteAction(page, 'Dictate to clipboard');

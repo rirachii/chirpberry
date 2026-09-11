@@ -83,3 +83,7 @@ Provider-backed verification and actual capture tests are separate release gates
 The website currently uses a labelled HTML illustration of the notebook.
 A verified native screenshot is a separate visual acceptance task.
 Release packaging must include the exact source revision, the selected app and its MCP entrypoint, source archive, manifest, and checksums. Native and Electron release scripts and artifacts are separate; [releasing](releasing.md) owns those procedures.
+
+## First-run setup state
+
+`shared/onboarding.ts` defines a bounded step enum and strict IPC update. `settings.json` stores the current step atomically through the serialized settings patch queue. New profiles default to `welcome`; existing valid settings without this field load as `complete` without changing other preferences. The renderer receives key-presence status only and uses the existing protected key-save endpoint. Guide updates cannot patch unrelated settings or start capture. Calendar and detection reuse their existing explicit-action endpoints. The guide hides while capture is active; main rejects setup updates during recording and stops capture if disclosure is revoked across an asynchronous settings write. Replay uses local step state and does not reset completion.

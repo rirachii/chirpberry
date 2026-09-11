@@ -1,3 +1,4 @@
+import { skipOnboarding } from './ui';
 import { test, expect, _electron as electron } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -15,6 +16,7 @@ test('optional call suggestions respect setup, dismissal and explicit recording,
   let application = await electron.launch(options);
   try {
     const page = await application.firstWindow(), errors: string[] = [];
+    await skipOnboarding(page);
     page.on('pageerror', error => errors.push(error.message));
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     const toggle = page.getByRole('checkbox', { name: 'Suggest notes when a call starts', exact: true });
@@ -86,6 +88,7 @@ test('optional call suggestions respect setup, dismissal and explicit recording,
     await application.close();
     application = await electron.launch(options);
     const restored = await application.firstWindow();
+    await skipOnboarding(restored);
     await restored.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expect(restored.getByRole('checkbox', { name: 'Suggest notes when a call starts' })).not.toBeChecked();
     const reloaded = await restored.evaluate(async () => (await window.chirpberry.load()).meetings);
@@ -101,6 +104,7 @@ test('production Apple Calendar setup can be skipped and unavailable detection c
     env: { ...process.env, CHIRPBERRY_PROFILE_DIR: path.join(root, 'profile'), CHIRPBERRY_DOCUMENTS_DIR: path.join(root, 'documents'), CHIRPBERRY_DISABLE_OS_INTEGRATIONS: '1' } });
   try {
     const page = await application.firstWindow();
+    await skipOnboarding(page);
     await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Connect Apple Calendar', exact: true })).toBeDisabled();
     await expect(page.getByRole('checkbox', { name: 'Suggest notes when a call starts' })).toBeDisabled();

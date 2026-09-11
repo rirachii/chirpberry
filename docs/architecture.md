@@ -31,6 +31,7 @@ Exports never include credentials.
 
 Audio goes directly to api.valsea.ai over an authenticated encrypted WebSocket.
 The key is stored in macOS Keychain, or protected Electron safeStorage on Windows/Linux, and sent in an Authorization header, never a query string. Linux rejects the plaintext fallback backend.
+Electron startup checks saved-key presence without decrypting a secret. The Mac helper requests attributes only with both legacy and modern authentication UI disabled, restoring its prior UI policy synchronously. Presence does not prove that the key unlocks or authenticates. Actual secret reads follow explicit recording, import, summary, or meeting-AI actions; cloud disclosures remain independently required.
 Chirpberry does not save microphone or computer-audio recordings.
 Audio-file import uploads the explicitly selected source file through the batch API without changing the original.
 Enhance notes sends the selected meeting's notes and transcript to Valsea's formatting endpoint.
@@ -55,7 +56,7 @@ A translation belongs to a complete provider segment, not independently to every
 Speaker identities are scoped to the capture session, so a resumed session does not silently inherit a different speaker's name.
 Provider timestamps are displayed as segment timing; word-accurate timing is not claimed.
 Pause stops capture and ends provider streams; resume creates new streams.
-Stop drains queued audio and waits for final events for a bounded period.
+Stop drains queued audio and waits for final events for a bounded period. Electron permits PCM during an explicit graceful Stop/Pause drain only; cancellation, failure, disclosure revocation, and window termination immediately abort that drain. The Mac helper fences its shared sample queue after stopping the producers, then acknowledges Stop after queued output. The browser worklet flushes its partial frame and waits for IPC acknowledgements before contexts close; main destroys a stalled capture window after three seconds. Provider finalization starts after the audio drain.
 Errors retain saved notes and final segments; unsaved audio cannot be recovered because the app does not record it to disk.
 
 Companion renderer termination cancels Electron capture through the shared recording owner with clipboard delivery suppressed. Native audio imports create a new document before transcription, append to that document by its captured ID, and attach translation by the imported segment's UUID, preserving concurrent live finals and personal notes across both requests. Native document decode and save reject negative or non-finite timing, timing at or above the platform integer limit, and speaker indices outside `0..<Int.max`; display formatting also tolerates invalid in-memory values. Scratchpad retains consumed formatting identity in the parent view so Notes/Summary switches cannot replay an earlier edit. Formatting executes outside SwiftUI view updates, and native undo/redo synchronizes the notes binding for persistence.
@@ -80,8 +81,7 @@ Core tests cover source/translation semantics, provisional/final state, deduplic
 The long-lived Mac integration helper can recover after a timeout or process failure on the next request. Recovery awaits the previous process's exit, ignores its late events, starts one replacement, and restores the saved shortcut configuration. The failed action is never replayed. Explicit shutdown is terminal, and capture helpers retain terminal cancellation semantics; integration recovery cannot resume recording.
 
 Provider-backed verification and actual capture tests are separate release gates from unit tests. The current outstanding gates are tracked in [release readiness](release-readiness.md).
-The website currently uses a labelled HTML illustration of the notebook.
-A verified native screenshot is a separate visual acceptance task.
+The repository `site/` directory is the legacy native marketing draft. The current public onboarding website has a separate source checkout and deployment; see [website ownership](releasing.md#public-website).
 Release packaging must include the exact source revision, the selected app and its MCP entrypoint, source archive, manifest, and checksums. Native and Electron release scripts and artifacts are separate; [releasing](releasing.md) owns those procedures.
 
 ## First-run setup state

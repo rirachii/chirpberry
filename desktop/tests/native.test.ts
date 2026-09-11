@@ -136,3 +136,28 @@ test('graceful child exit and failed spawn settle shutdown without a force-kill 
   await assert.rejects(missing.request('ping'), /stopped/);
   await missing.destroy();
 });
+
+test('Mac input forwards captured PCM queued before the graceful stop acknowledgement', async t => {
+  const { bridge, events } = await helper(t, 'stop-frame');
+  const input = new MacAudioInput(process.execPath, () => bridge), frames: number[] = [];
+  await input.start(false, (_channel, pcm) => frames.push(pcm.length), () => {}, new AbortController().signal);
+  const { pid } = await bridge.request<{ pid: number }>('ping');
+  await input.stop();
+  assert.deepEqual(frames, [2]); assertExited(pid);
+  assert.equal((await events()).filter(event => event.command === 'audio.stop').length, 1);
+});
+
+test('abort interrupts an in-flight native drain and suppresses late PCM', async t => {
+  const { bridge, waitFor } = await helper(t, 'hang-stop');
+  const input = new MacAudioInput(process.execPath, () => bridge), abort = new AbortController();
+  let frames = 0;
+  await input.start(false, () => frames++, () => assert.fail('Cancellation reported failure'), abort.signal);
+  const stopping = input.stop();
+  const rejected = assert.rejects(stopping, /stopped/);
+  const pid = await waitFor('audio.stop');
+  const started = performance.now(); abort.abort();
+  bridge.emit('audio', { channel: 'Microphone', pcm: 'AAA=', level: 0 });
+  await rejected;
+  assert.equal(frames, 0); assertExited(pid);
+  assert.ok(performance.now() - started < 1500, 'Cancellation must interrupt the three-second graceful timeout');
+});

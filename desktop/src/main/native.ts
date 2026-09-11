@@ -92,12 +92,14 @@ export class NativeBridge extends EventEmitter {
 export class MacAudioInput implements AudioInput {
   private bridge?: NativeBridge;
   private teardown?: Promise<void>;
+  private removeAbort?: () => void;
   constructor(private executable: string, private makeBridge: () => NativeBridge = () => new NativeBridge(executable)) {}
   async start(systemAudio: boolean, pcm: Parameters<AudioInput['start']>[1], failure: (message: string) => void, signal: AbortSignal) {
     if (signal.aborted) return;
     if (this.bridge || this.teardown) throw new Error('This capture input has already been used. Start a new recording phase.');
     const bridge = this.makeBridge(); this.bridge = bridge;
-    const abort = () => { void this.end(bridge, false); };
+    const abort = () => { void this.end(bridge, false).catch(() => {}); };
+    this.removeAbort = () => signal.removeEventListener('abort', abort);
     signal.addEventListener('abort', abort, { once: true });
     bridge.once('failure', event => failure(event.message));
     bridge.on('audio', event => {
@@ -106,14 +108,16 @@ export class MacAudioInput implements AudioInput {
     });
     try { await bridge.request('audio.start', { systemAudio }, 120000); }
     catch (error) { await this.end(bridge, false); throw error; }
-    finally { signal.removeEventListener('abort', abort); if (signal.aborted) await this.end(bridge, false); }
+    finally { if (signal.aborted) await this.end(bridge, false); }
   }
   private end(bridge: NativeBridge, graceful: boolean): Promise<void> {
+    // Cancellation can interrupt an in-flight drain; no more frames may escape.
+    if (!graceful) { bridge.removeAllListeners(); void bridge.destroy(); }
     if (this.teardown) return this.teardown;
-    this.bridge = undefined; bridge.removeAllListeners();
+    this.bridge = undefined;
     this.teardown = (async () => {
       try { if (graceful && bridge.running) await bridge.request('audio.stop', {}, 3000); }
-      finally { await bridge.destroy(); }
+      finally { this.removeAbort?.(); this.removeAbort = undefined; bridge.removeAllListeners(); await bridge.destroy(); }
     })();
     return this.teardown;
   }

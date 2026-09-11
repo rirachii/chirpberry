@@ -186,3 +186,36 @@ for (const during of ['provider drain', 'persistence'] as const) {
     });
   }
 }
+
+for (const action of ['stop', 'pause', 'cancel'] as const) test(`${action} handles already captured PCM before provider finalization`, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'chirpberry-drain-'));
+  const store = new MeetingStore(directory); await store.load(); const note = await store.create('meeting');
+  let pcm!: (channel: string, data: Buffer, level: number) => void;
+  const events: string[] = [];
+  const controller = new RecordingController({ store, getKey: async () => 'synthetic', copy: () => {}, changed: () => {},
+    createAudio: () => ({ start: async (_system, callback) => { pcm = callback; }, stop: async () => { pcm('Microphone', Buffer.alloc(2), 0); } }),
+    createStream: () => ({ connect: async () => {}, sendAudio: () => { events.push('pcm'); return true; }, close: () => {}, finish: async () => { events.push('finish'); } }) });
+  try {
+    await controller.start({ meetingId: note.id, purpose: 'meeting', includeSystemAudio: false, language: 'auto', diarize: false, disclosureAccepted: true });
+    await controller.stop(action === 'pause' ? { pause: true } : action === 'cancel' ? { deliver: false } : {});
+    assert.deepEqual(events, action === 'cancel' ? ['finish'] : ['pcm', 'finish']);
+  } finally { await controller.stop({ deliver: false }); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('cancellation during a graceful drain rejects subsequent PCM immediately', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'chirpberry-drain-cancel-'));
+  const store = new MeetingStore(directory); await store.load(); const note = await store.create('meeting');
+  let pcm!: (channel: string, data: Buffer, level: number) => void;
+  const stopping = gate(), drain = gate(); let frames = 0;
+  const controller = new RecordingController({ store, getKey: async () => 'synthetic', copy: () => {}, changed: () => {},
+    createAudio: () => ({ start: async (_system, callback) => { pcm = callback; }, stop: async () => { stopping.release(); await drain.promise; pcm('Microphone', Buffer.alloc(2), 0); } }),
+    createStream: () => ({ connect: async () => {}, sendAudio: () => { frames++; return true; }, close: () => {}, finish: async () => {} }) });
+  try {
+    await controller.start({ meetingId: note.id, purpose: 'meeting', includeSystemAudio: false, language: 'auto', diarize: false, disclosureAccepted: true });
+    const stopped = controller.stop(); await stopping.promise;
+    pcm('Microphone', Buffer.alloc(2), 0); assert.equal(frames, 1);
+    const cancelled = controller.stop({ deliver: false });
+    pcm('Microphone', Buffer.alloc(2), 0); assert.equal(frames, 1);
+    drain.release(); await Promise.all([stopped, cancelled]); assert.equal(frames, 1);
+  } finally { drain.release(); await controller.stop({ deliver: false }); await rm(directory, { recursive: true, force: true }); }
+});

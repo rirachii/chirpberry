@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { safeStorage } from 'electron';
 import { settingsSchema, readStoredSettings, type AppSettings } from '../shared/capture';
@@ -48,12 +48,19 @@ export class Credentials {
       return safeStorage.decryptString(Buffer.from(await readFile(filename, 'utf8'), 'base64'));
     } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ''; throw new Error('The protected API key could not be unlocked. Save it again in Settings.'); }
   }
-  async status() { return !!(await this.read()).trim(); }
+  /** Presence only: startup must not decrypt keys or trigger OS authentication UI. */
+  async status(): Promise<boolean> {
+    this.requireProtection();
+    if (this.native) return this.native.request<boolean>(`${this.command}.status`);
+    try { const info = await stat(path.join(this.directory, this.filename)); return info.isFile() && info.size > 0 && info.size <= 32768; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw new Error('Protected key storage could not be checked. Check Settings.'); }
+  }
   async save(input: unknown) {
     this.requireProtection();
     if (typeof input !== 'string' || input.length > 4096 || /[\r\n]/.test(input)) throw new Error('Enter a valid API key.');
     const key = input.trim();
     if (this.native) await this.native.request(`${this.command}.save`, { key });
+    else if (!key) await rm(path.join(this.directory, this.filename), { force: true });
     else await atomicWrite(path.join(this.directory, this.filename), safeStorage.encryptString(key).toString('base64'));
     return !!key;
   }

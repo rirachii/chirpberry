@@ -63,11 +63,12 @@ final class Output: @unchecked Sendable {
             var result: Any = true
             switch command {
             case "ping": result = ["version": 1, "microphone": true, "systemAudio": true, "calendar": true, "meetingDetection": true]
-            case "credential.status": result = !(try ValseaKeychain.read()).isEmpty
+            case "credential.status": result = try KeychainPresence.contains(service: ValseaKeychain.service)
             case "credential.read": result = try ValseaKeychain.read()
             case "credential.save":
                 guard let key = arguments["key"] as? String, key.count <= 4096, !key.contains("\n"), !key.contains("\r") else { throw CoreError.invalid("Enter a valid API key.") }
                 try ValseaKeychain.save(key.trimmingCharacters(in: .whitespacesAndNewlines))
+            case "assistant-key.status": result = try KeychainPresence.contains(service: AssistantKeychain.service)
             case "assistant-key.read": result = try AssistantKeychain.read()
             case "assistant-key.save":
                 guard let key = arguments["key"] as? String, key.count <= 4096, !key.contains("\n"), !key.contains("\r") else { throw CoreError.invalid("Enter a valid API key.") }

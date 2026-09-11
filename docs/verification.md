@@ -180,3 +180,13 @@ All 26 Electron scenarios passed. Acceptance covers the optional setup path, no 
 The separate Mac package passed all six production Electron scenarios; twenty fixture cases skipped as intended. Strict deep signature verification, signed Calendar/microphone declarations, and archive checks passed. The packaged helper advertised detection and returned a bounded metadata result through its private bridge; no capture command was sent. The production archive contains the new UI/detection code and excludes fixture adapters. Its `app.asar` SHA-256 is `f6e4b3733a7d243f2f220ea43f521a1db47c75eb09eb6387261228252efaffac`. This is an ad-hoc signed, unnotarized candidate, not a released installer.
 
 No real meeting audio, provider request, Calendar account contents, or notification delivery is established by these tests. The installed app was not quit or replaced; its archive checksum remains unchanged at the user's request. Real Zoom/Teams/Meet input attribution and Calendar authorization are independent acceptance gates, along with the existing provider, performance, platform, signing, and distribution gates.
+
+## Electron release review and drain/startup fixes — 2026-09-11
+
+The independent standards/specification review found two defects before merging the Electron stack: Stop/Pause discarded queued PCM, and startup read Keychain secrets before onboarding appeared. [Review findings, fixes, and limits](release-review-2026-09-11.md) record each axis separately.
+
+Electron now drains queued audio before provider finalization, including native sample callbacks and browser-worklet partial frames plus IPC acknowledgements. Cancellation/failure interrupts that drain. Startup checks saved-key presence without decrypting it or requesting Keychain UI. The preserved SwiftUI controller's own late-PCM gate remains a separate native limitation.
+
+After the final native queue fence, `scripts/verify.sh` passed: 32 Swift core tests, 28 native model tests, 76 Electron tests, three legacy-site tests, MCP checks, and production builds. All 29 Electron UI scenarios passed together after the TypeScript fixes; the final native-only fence is covered by the added model regression and full verification run. Actual provider/device behavior is not established by these synthetic regressions.
+
+The unpublished `9b8f21b` DMG/ZIP/source set passed preparation and mounted-payload verification but predates these fixes; it is held and must not be published. Corrected packaging and source-merge receipts follow separately. No installed-app quit or replacement was performed. Both cloud-processing disclosures in the existing installed profile remain off; no live service request was run.

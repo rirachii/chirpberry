@@ -6,21 +6,30 @@ declare global {
   }
 }
 const streams: MediaStream[] = [], contexts: AudioContext[] = [];
-let stopped = false;
+const drains: (() => Promise<void>)[] = [];
+let stopped = false, stopping: Promise<void> | undefined;
 async function attach(stream: MediaStream, channel: string) {
-  if (stopped) { stream.getTracks().forEach(track => track.stop()); throw new Error('Capture cancelled'); }
+  if (stopped || stopping) { stream.getTracks().forEach(track => track.stop()); throw new Error('Capture cancelled'); }
   streams.push(stream);
-  for (const track of stream.getAudioTracks()) track.onended = () => { if (!stopped) window.captureHost.failure(); };
+  for (const track of stream.getAudioTracks()) track.onended = () => { if (!stopped && !stopping) window.captureHost.failure(); };
   const context = new AudioContext(); contexts.push(context);
   await context.audioWorklet.addModule('./worklet.js');
-  if (stopped) return;
+  if (stopped || stopping) return;
   const source = context.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
   const worklet = new AudioWorkletNode(context, 'chirpberry-pcm');
-  worklet.onprocessorerror = () => window.captureHost.failure();
+  let resolveDrain: (() => void) | undefined, rejectDrain: ((error: Error) => void) | undefined;
+  let failed = false;
+  const failure = () => { failed = true; rejectDrain?.(new Error('Audio could not be delivered.')); if (!stopped) window.captureHost.failure(); };
+  drains.push(() => new Promise<void>((resolve, reject) => {
+    if (failed) { reject(new Error('Audio could not be delivered.')); return; }
+    resolveDrain = resolve; rejectDrain = reject; worklet.port.postMessage('flush');
+  }));
+  worklet.onprocessorerror = failure;
   worklet.port.onmessage = event => {
     if (stopped) return;
-    if (event.data.failure) { window.captureHost.failure(); return; }
-    void window.captureHost.frame(channel, event.data.pcm, event.data.level).then(() => worklet.port.postMessage('ack')).catch(() => window.captureHost.failure());
+    if (event.data.failure) { failure(); return; }
+    if (event.data.flushed) { resolveDrain?.(); return; }
+    void window.captureHost.frame(channel, event.data.pcm, event.data.level).then(() => worklet.port.postMessage('ack')).catch(failure);
   };
   // A silent output keeps the graph processing without playing microphone audio.
   const silent = context.createGain(); silent.gain.value = 0;
@@ -29,17 +38,23 @@ async function attach(stream: MediaStream, channel: string) {
 window.startCapture = async systemAudio => {
   try {
     await attach(await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 }, video: false }), 'Microphone');
+    if (stopped || stopping) return;
     if (systemAudio) {
       const system = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
       streams.push(system);
       if (!system.getAudioTracks().length) throw new Error('System audio unavailable');
       await attach(system, 'System audio');
     }
-  } catch { await window.stopCapture(); throw new Error('Capture could not start. Check microphone permissions and your audio devices.'); }
+  } catch { await window.stopCapture().catch(() => {}); throw new Error('Capture could not start. Check microphone permissions and your audio devices.'); }
 };
-window.stopCapture = async () => {
-  stopped = true; streams.forEach(stream => stream.getTracks().forEach(track => track.stop()));
-  await Promise.all(contexts.map(context => context.close().catch(() => {})));
+window.stopCapture = () => {
+  if (stopping) return stopping;
+  stopping = Promise.resolve().then(async () => {
+    streams.forEach(stream => stream.getTracks().forEach(track => track.stop()));
+    try { await Promise.all(drains.map(drain => drain())); }
+    finally { stopped = true; await Promise.all(contexts.map(context => context.close().catch(() => {}))); }
+  });
+  return stopping;
 };
 window.addEventListener('beforeunload', () => { stopped = true; streams.forEach(stream => stream.getTracks().forEach(track => track.stop())); });
 export {};

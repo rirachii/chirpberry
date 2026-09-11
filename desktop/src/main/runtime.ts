@@ -109,7 +109,7 @@ export class DesktopRuntime {
     }
     this.capabilities.protectedCredentials = this.credentials.available();
     try { this.keySaved = this.capabilities.protectedCredentials && await this.credentials.status(); }
-    catch { this.capabilities.problem = 'The saved Valsea key could not be unlocked. Check Settings.'; }
+    catch { this.capabilities.problem = 'Saved key storage could not be checked. Unlock your system keyring, then restart Chirpberry or save your key in Settings.'; }
     try { this.assistantKeySaved = this.assistantCredentials.available() && await this.assistantCredentials.status(); } catch { this.assistantKeySaved = false; }
     this.configureCalendar();
     this.configureDetection();

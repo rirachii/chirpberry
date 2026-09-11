@@ -1,6 +1,6 @@
-# Chirpberry website
+# Legacy Chirpberry website draft
 
-The static marketing site lives in this directory and has no backend, sign-in, analytics, or speech upload controls.
+This preserved native marketing draft lives in this directory and has no backend, sign-in, analytics, or speech upload controls.
 Its copy and download targets describe the preserved SwiftUI Mac app; [Electron candidate support](../desktop/README.md) is documented separately. The page remains a release draft until the [publication gates](../docs/releasing.md) are complete.
 Run npm ci, npm run dev, and npm run build with Node 22.12 or later.
 The development port is 5182 and the preview port is 4182.
@@ -13,6 +13,4 @@ Replace the product illustration with a verified native screenshot when that scr
 Both download anchors must target the same existing versioned DMG asset before production deployment.
 Homebrew instructions must match the canonical rirachii/homebrew-tap cask.
 
-Deploy through a separate Vercel project with Root Directory set to site and production branch main.
-Run CLI commands from the repository root, where .vercelignore limits uploads to website source.
-Verify desktop and mobile layouts, keyboard access, reduced motion, copy failure, and the real download after deployment.
+The current public site at https://chirpberry.vercel.app uses a separate source checkout. Do not deploy this legacy draft over that project. See [public website ownership](../docs/releasing.md#public-website) before any deployment. If this draft is intentionally published separately, verify desktop/mobile layouts, keyboard access, reduced motion, copy failure, and the actual download.

@@ -14,8 +14,13 @@ final class AudioCapture: NSObject, SCStreamOutput, SCStreamDelegate, RecordingA
     var onFailure: ((String) -> Void)?
     private var stream: SCStream?
     private var engine: AVAudioEngine?
-    private let queue = DispatchQueue(label: "chirpberry.audio", qos: .userInitiated)
+    private let queue: DispatchQueue
     private let encoder = PCMEncoder()
+
+    init(queue: DispatchQueue = DispatchQueue(label: "chirpberry.audio", qos: .userInitiated)) {
+        self.queue = queue
+        super.init()
+    }
 
     @MainActor func start(includeSystemAudio: Bool) async throws {
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
@@ -42,7 +47,11 @@ final class AudioCapture: NSObject, SCStreamOutput, SCStreamDelegate, RecordingA
             let input = candidate.inputNode
             let format = input.outputFormat(forBus: 0)
             guard format.sampleRate > 0, format.channelCount > 0 else { throw CoreError.invalid("No microphone is available.") }
-            input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in self?.convert(buffer, channel: "Microphone") }
+            input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+                guard let self else { return }
+                // The tap owns this buffer only until its callback returns.
+                self.queue.sync { self.convert(buffer, channel: "Microphone") }
+            }
             engine = candidate
             do { try candidate.start() } catch { input.removeTap(onBus: 0); engine = nil; throw error }
         }
@@ -50,7 +59,11 @@ final class AudioCapture: NSObject, SCStreamOutput, SCStreamDelegate, RecordingA
     @MainActor func stop() async {
         if let engine { engine.inputNode.removeTap(onBus: 0); engine.stop(); self.engine = nil }
         if let stream { self.stream = nil; try? await stream.stopCapture() }
-        encoder.reset()
+        // stopCapture/removeTap stop the producers. Fence their queued callbacks
+        // before the bridge can acknowledge Stop and retire its output listeners.
+        await withCheckedContinuation { continuation in
+            queue.async { self.encoder.reset(); continuation.resume() }
+        }
     }
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         onFailure?("Audio capture stopped. Check microphone and Screen & System Audio Recording permissions.")

@@ -52,7 +52,12 @@ The cask pins the versioned GitHub URL and checksum, declares arm64 and macOS Ta
 Run Homebrew style and audit, then test an actual installation without overwriting an existing app.
 Do not claim a clean install from a download-only check.
 
-Create the Vercel project with repository root directory `site` and production branch `main`.
-Keep Git-triggered deployment disabled until release assets exist, or use preview deployments during preparation.
-Check both download anchors, Homebrew copying, responsive layout, and the real downloaded DMG after production deployment.
 Record release URLs, source revision, artifact checksums, install evidence, and remaining limitations in tracked release notes.
+
+## Public website
+
+The live website is https://chirpberry.vercel.app, with the onboarding guide at `/get-started`. Its current source is maintained in the separate `chirpberry-web-onboarding` checkout (deployment receipt in that checkout's tracked docs). It has no Git remote configured; its local commits are not part of this repository. Preserve that distinction when reporting publication status.
+
+The `site/` directory here is the older native marketing draft. Do not deploy it over the current public project. Its checks remain in the core verification script for the preserved native implementation.
+
+The public guide currently offers a source preview, not a released DMG or Homebrew cask. Keep its pinned source revision available on GitHub. After desktop acceptance and asset publication, update the actual public website's source, verify the downloaded artifact checksum, then deploy it. Check desktop/mobile layout, onboarding steps, keyboard access, reduced motion, Homebrew copying, and download targets against the public release. A website deployment does not establish desktop release acceptance.

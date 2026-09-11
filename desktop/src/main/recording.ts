@@ -11,7 +11,7 @@ export interface AudioInput {
 }
 type Job = { options: CaptureOptions; phase: string; abort: AbortController; streams: Map<string, SpeechStream>;
   audio?: AudioInput; reducer: TranscriptReducer; finals: Promise<void>; queuedFinals: number; text: string;
-  elapsed: number; phaseOffset: number; startedAt?: number; deliveryAllowed: boolean; pauseAfterStop: boolean; failure?: string; stopping?: Promise<void> };
+  elapsed: number; phaseOffset: number; startedAt?: number; deliveryAllowed: boolean; draining: boolean; pauseAfterStop: boolean; failure?: string; stopping?: Promise<void> };
 type Dependencies = { store: MeetingStore; getKey(): Promise<string>; createAudio(): AudioInput;
   createStream(options: RealtimeOptions): SpeechStream; copy(text: string): void | Promise<void>;
   changed(snapshot: CaptureSnapshot): void; meetingChanged?(meeting: Meeting, fields: (keyof Meeting)[]): void };
@@ -34,7 +34,7 @@ export class RecordingController {
     const meeting = this.dependencies.store.get(options.meetingId);
     if (meeting.isTrashed) throw new Error('Restore this note before recording.');
     const job: Job = { options, phase: '', abort: new AbortController(), streams: new Map(), reducer: new TranscriptReducer(),
-      finals: Promise.resolve(), queuedFinals: 0, text: '', elapsed: meeting.duration, phaseOffset: meeting.duration, deliveryAllowed: true, pauseAfterStop: false };
+      finals: Promise.resolve(), queuedFinals: 0, text: '', elapsed: meeting.duration, phaseOffset: meeting.duration, deliveryAllowed: true, draining: false, pauseAfterStop: false };
     this.job = job;
     await this.run(job);
   }
@@ -44,7 +44,7 @@ export class RecordingController {
   }
   private async run(job: Job) {
     job.phase = randomUUID(); const phase = job.phase;
-    job.abort = new AbortController(); job.reducer = new TranscriptReducer(); job.stopping = undefined;
+    job.abort = new AbortController(); job.reducer = new TranscriptReducer(); job.stopping = undefined; job.draining = false;
     job.streams = new Map(); job.phaseOffset = job.elapsed;
     this.value = { state: 'connecting', meetingId: job.options.meetingId, purpose: job.options.purpose, elapsed: job.elapsed, partials: {}, levels: {} };
     this.publish();
@@ -66,7 +66,8 @@ export class RecordingController {
       if (!current()) return;
       const audio = this.dependencies.createAudio(); job.audio = audio;
       await audio.start(job.options.includeSystemAudio, (channel, data, level) => {
-        if (this.job !== job || job.phase !== phase || this.value.state !== 'recording') return;
+        if (this.job !== job || job.phase !== phase || job.abort.signal.aborted || job.failure ||
+          !(this.value.state === 'recording' || this.value.state === 'finishing' && job.draining)) return;
         const stream = job.streams.get(channel);
         if (!stream || !stream.sendAudio(data)) { this.fail(job, 'Audio could not reach the transcription service. Capture stopped.'); return; }
         this.value.levels[channel] = Math.min(1, Math.max(0, Number.isFinite(level) ? level : 0));
@@ -102,25 +103,27 @@ export class RecordingController {
   private elapsed(job: Job) { return job.elapsed + (job.startedAt === undefined ? 0 : Math.max(0, (performance.now() - job.startedAt) / 1000)); }
   private fail(job: Job, message: string) {
     if (this.job !== job) return;
-    job.failure ??= message; job.deliveryAllowed = false;
+    job.failure ??= message; job.deliveryAllowed = false; job.draining = false; job.abort.abort();
     if (job.stopping) { for (const stream of job.streams.values()) stream.close(); return; }
     void this.stop({ deliver: false });
   }
   stop(options: { pause?: boolean; deliver?: boolean } = {}): Promise<void> {
     const job = this.job; if (!job) return Promise.resolve();
-    if (options.deliver === false) job.deliveryAllowed = false;
+    if (options.deliver === false) { job.deliveryAllowed = false; job.draining = false; job.abort.abort(); }
     if (job.stopping) {
       if (!options.pause || options.deliver === false) job.pauseAfterStop = false;
       return job.stopping;
     }
     job.pauseAfterStop = options.pause === true && options.deliver !== false;
     const connecting = this.value.state === 'connecting';
+    job.draining = this.value.state === 'recording' && !job.abort.signal.aborted && !job.failure;
+    if (!job.draining) job.abort.abort();
     this.value.state = 'finishing'; clearInterval(this.timer); this.timer = undefined;
     job.elapsed = this.elapsed(job); job.startedAt = undefined; this.value.elapsed = job.elapsed;
     if (connecting) job.deliveryAllowed = false;
     job.stopping = Promise.resolve().then(async () => {
       try { await job.audio?.stop(); } catch { job.failure ??= 'Audio capture did not stop cleanly. The clipboard is unchanged.'; }
-      job.audio = undefined;
+      job.draining = false; job.abort.abort(); job.audio = undefined;
       if (!connecting && !job.failure) {
         await Promise.all([...job.streams.values()].map(async stream => {
           try { await stream.finish(); } catch { job.failure ??= 'Transcription did not finish cleanly. Saved final segments are retained; the clipboard is unchanged.'; }
@@ -149,7 +152,7 @@ export class RecordingController {
       this.job = undefined;
       this.value = { state: 'idle', elapsed: job.elapsed, partials: {}, levels: {}, ...(message ? { message } : {}) }; this.publish();
     });
-    job.abort.abort(); this.publish();
+    this.publish();
     if (connecting) { for (const stream of job.streams.values()) stream.close(); }
     return job.stopping;
   }

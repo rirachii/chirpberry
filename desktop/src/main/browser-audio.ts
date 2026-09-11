@@ -45,6 +45,15 @@ export class BrowserAudioInput implements AudioInput {
   }
   async stop() {
     const window = this.window; this.window = undefined;
-    if (window && !window.isDestroyed()) window.destroy(); // Destroying its process releases every MediaStream and permission request.
+    if (!window || window.isDestroyed()) return;
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      // Keep IPC alive until partial worklet frames and their acknowledgements drain.
+      await Promise.race([window.webContents.executeJavaScript('window.stopCapture()'),
+        new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('Audio capture did not finish in time.')), 3000); })]);
+    } finally {
+      clearTimeout(timer);
+      if (!window.isDestroyed()) window.destroy(); // Also releases pending permission requests on failure.
+    }
   }
 }

@@ -1,0 +1,74 @@
+name: Chirpberry
+options:
+  bundleIdPrefix: com.rirachii
+  deploymentTarget:
+    macOS: "26.0"
+packages:
+  ChirpberryCore:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    ENABLE_HARDENED_RUNTIME: NO
+    SWIFT_STRICT_CONCURRENCY: targeted
+targets:
+  Chirpberry:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+      - path: Resources
+        excludes: [bin]
+        buildPhase: resources
+      - path: Resources/bin
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: ChirpberryCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rirachii.chirpberry
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        COMBINE_HIDPI_IMAGES: YES
+  ChirpberryModelTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/ChirpberryAppTests
+      - path: App/AppDelegate.swift
+      - path: App/NotebookModel.swift
+      - path: App/NoteTextEditor.swift
+      - path: App/RealtimeConnection.swift
+      - path: App/AudioCapture.swift
+      - path: App/Keychain.swift
+      - path: App/CompanionShortcuts.swift
+      - path: App/DictationClipboard.swift
+      - path: App/DesktopCompanion.swift
+      - path: App/DictationDestination.swift
+      - path: App/FloatingBar.swift
+      - path: App/Brand.swift
+    dependencies:
+      - package: ChirpberryCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  ChirpberryModelTests:
+    build:
+      targets:
+        ChirpberryModelTests: all
+    test:
+      targets:
+        - ChirpberryModelTests
+  Chirpberry:
+    build:
+      targets:
+        Chirpberry: all
+    run:
+      config: Debug
+    archive:
+      config: Release

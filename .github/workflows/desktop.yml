@@ -1,0 +1,44 @@
+name: Electron desktop
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'macOS/**', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['desktop/**', 'macOS/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  notebook:
+    strategy:
+      matrix:
+        os: [macos-26, windows-latest, ubuntu-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run test:e2e
+        if: runner.os != 'Linux'
+      - run: xvfb-run --auto-servernum npm run test:e2e
+        if: runner.os == 'Linux'
+      - run: npm run package:installers
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chirpberry-${{ runner.os }}-candidate
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.exe
+            desktop/release/*.AppImage
+            desktop/test-results/**/*.png
+          if-no-files-found: error

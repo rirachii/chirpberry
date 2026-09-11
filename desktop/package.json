@@ -1,0 +1,84 @@
+{
+  "name": "chirpberry-desktop",
+  "productName": "Chirpberry",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Chirpberry's cross-platform meeting notebook",
+  "author": "Chirpberry contributors",
+  "license": "MIT",
+  "main": "dist/main.cjs",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "npm run build:native && npm run build && electron .",
+    "build:native": "node scripts/build-native.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts tests/*.test.mjs",
+    "test:e2e": "npm run build && node scripts/build.mjs --fixture && playwright test",
+    "verify": "npm run typecheck && npm test && npm run build",
+    "package": "npm run build:native && npm run build && electron-builder --dir --publish never",
+    "package:installers": "npm run build:native && npm run build && electron-builder --publish never",
+    "release:prepare": "node scripts/release.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/ws": "8.18.1",
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "lucide-react": "1.43.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.0",
+    "ws": "8.21.3",
+    "zod": "4.6.0"
+  },
+  "build": {
+    "appId": "com.rirachii.chirpberry.desktop",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "asar": true,
+    "icon": "dist/renderer/chirpberry.png",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "identity": "-",
+      "entitlements": "native/entitlements.mac.plist",
+      "entitlementsInherit": "native/entitlements.mac.plist",
+      "minimumSystemVersion": "26.0",
+      "target": [{ "target": "dmg", "arch": ["arm64"] }, { "target": "zip", "arch": ["arm64"] }],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Chirpberry records audio only when you start a meeting or dictation.",
+        "NSCalendarsFullAccessUsageDescription": "Chirpberry reads upcoming events to prepare notes. You choose when to send notes for AI processing.",
+        "NSScreenCaptureUsageDescription": "Chirpberry includes system audio only when you choose it for a meeting."
+      },
+      "extraResources": [
+        { "from": "native-build/Chirpberry Capture.app", "to": "Chirpberry Capture.app" },
+        { "from": "native-build/chirpberry-mcp", "to": "chirpberry-mcp" }
+      ]
+    },
+    "extraResources": [{ "from": "dist/mcp.cjs", "to": "mcp.cjs" }],
+    "dmg": { "title": "Chirpberry 0.2.0 · Unnotarized", "contents": [{ "x": 130, "y": 190 }, { "x": 270, "y": 310, "type": "file", "path": "INSTALL.txt" }] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "deleteAppDataOnUninstall": false, "createDesktopShortcut": true },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    }
+  }
+}

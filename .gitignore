@@ -1,10 +1,15 @@
 macOS/.build/
 macOS/*.xcodeproj/
+macOS/Resources/bin/
+macOS/Resources/LICENSE.txt
 .build/
 dist/
 dist-native/
 node_modules/
 site/dist/
+site/public/credits.txt
+site/test-results/
+site/playwright-report/
 .vercel/
 .env
 .env.*
@@ -12,3 +17,7 @@ site/dist/
 .DS_Store
 .local-notes/
 *.log
+macOS/Resources/AppIcon.icns
+
+__pycache__/
+*.pyc

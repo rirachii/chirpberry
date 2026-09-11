@@ -1,0 +1,6 @@
+dist/
+release/
+native-build/
+test-results/
+playwright-report/
+test-build/

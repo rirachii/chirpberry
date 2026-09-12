@@ -1,6 +1,6 @@
 # Electron 0.2.0 candidate artifact receipt — 2026-09-11
 
-Status: **unpublished, ad-hoc signed and unnotarized**. These artifacts do not establish clean-install, live service, OS permission, real-call detection, or sustained-performance acceptance. Public DMG/Homebrew publication remains blocked by the [release checklist](release-readiness.md).
+Status: **published as experimental `v0.2.0-preview.1`, ad-hoc signed and unnotarized** on September 12, 2026 after explicit owner approval. These artifacts do not establish first-launch, live service, OS permission, real-call detection, or sustained-performance acceptance. See [the distribution receipt](preview-distribution.md) and [remaining acceptance](release-readiness.md).
 
 ## Source and artifacts
 
@@ -29,4 +29,4 @@ The public guide was refreshed to this source commit in Vercel deployment `dpl_H
 
 ## Draft distribution follow-up — 2026-09-12
 
-The same exact-source artifacts are now uploaded to a GitHub draft prerelease, with every server-reported hash verified. A canonical Homebrew cask draft PR and a tested, undeployed website download section are prepared. See [the distribution receipt](preview-distribution.md) for links, actual install/uninstall evidence, the Gatekeeper result, local QA side effects, and the remaining publication decision. The public alias and installer availability have not changed.
+The same exact-source artifacts are now uploaded to a GitHub draft prerelease, with every server-reported hash verified. A canonical Homebrew cask draft PR and a tested, undeployed website download section are prepared. See [the distribution receipt](preview-distribution.md) for links, actual install/uninstall evidence, the Gatekeeper result, local QA side effects, and the remaining publication decision. This draft-stage entry is historical; the owner subsequently authorized experimental publication. Current public links and verification are recorded in the distribution receipt.

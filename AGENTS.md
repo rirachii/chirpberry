@@ -22,3 +22,5 @@ Never describe cloud processing as offline or unlimited free transcription.
 - Publish the exact clean source commit with a checksum-verified DMG and source archive; keep the unnotarized status visible.
 - Canonical Homebrew casks live in rirachii/homebrew-tap.
 - Shared engineering decisions belong in tracked docs; private test media and raw research stay outside Git.
+
+- `main` is protected by the active [Protect main ruleset](https://github.com/rirachii/chirpberry/rules/23015530). Use a branch and pull request, keep it current with `main`, pass the required `core` and `website` checks, and resolve review threads. There are no bypass actors. See [branch protection](docs/branch-protection.md) for check scope and maintenance.

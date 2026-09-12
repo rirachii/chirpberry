@@ -1,7 +1,7 @@
 # Release procedure
 
 The canonical source repository is `rirachii/chirpberry`.
-Homebrew publication belongs in `rirachii/homebrew-tap`, with a new `Casks/chirpberry.rb`.
+Homebrew publication belongs in `rirachii/homebrew-tap`, in `Casks/chirpberry.rb`.
 Keep Converty and other casks unchanged.
 
 ## Electron candidate
@@ -16,7 +16,7 @@ Source ZIPs archive the complete repository tree from its root, including native
 
 Mac artifacts target Apple Silicon/macOS 26 and are ad-hoc signed, unnotarized. Windows NSIS candidates are unsigned; Linux AppImage capture is microphone-only. `desktop/INSTALL.txt` and the DMG title disclose the Mac status. Developer ID/notarization and Windows certificate setup require their actual credentials; no signing identity is fabricated or selected from an unrelated Apple Development certificate.
 
-The desktop workflow runs notebook/fixture checks and packages platform candidates without publishing them. Real OS permissions, physical Fn, provider success, and installation remain manual gates. Only publish the verified artifacts after `docs/verification.md` has recorded those results. Update the website and Homebrew to the actual public release URLs/checksums after publication, then verify downloads. Do not enable links to unpublished candidate assets.
+The desktop workflow runs notebook/fixture checks and packages platform candidates without publishing them. Real OS permissions, physical Fn, provider success, and installation remain manual gates. Stable publication requires `docs/verification.md` to record those results. On September 12, 2026 the owner explicitly approved publishing the exact `040e04e` Mac artifacts as experimental `v0.2.0-preview.1` before those manual gates; this exception does not clear acceptance or apply to future stable releases. Preserve the prerelease label, unnotarized status, and disclosed limits. See [the publication receipt](preview-distribution.md). Update the website and Homebrew to the actual public release URLs/checksums after publication, then verify downloads. Do not enable links to unpublished candidate assets.
 
 ## Native release preparation
 
@@ -60,4 +60,6 @@ The live website is https://chirpberry.vercel.app, with the onboarding guide at 
 
 The `site/` directory here is the older native marketing draft. Do not deploy it over the current public project. Its checks remain in the core verification script for the preserved native implementation.
 
-The public guide currently offers a source preview, not a released DMG or Homebrew cask. Keep its pinned source revision available on GitHub. After desktop acceptance and asset publication, update the actual public website's source, verify the downloaded artifact checksum, then deploy it. Check desktop/mobile layout, onboarding steps, keyboard access, reduced motion, Homebrew copying, and download targets against the public release. A website deployment does not establish desktop release acceptance.
+The public guide supports the experimental DMG and canonical Homebrew cask, with advanced source instructions. Keep its pinned source revision available on GitHub. For each update, verify public artifact checksums and the cask installation before deploying the actual public website source. Check desktop/mobile layout, onboarding steps, keyboard access, reduced motion, Homebrew copying, and download targets against the public release. A website deployment does not establish desktop release acceptance.
+
+For the intentionally experimental custom-tap cask, online audit uses `--except=github_prerelease_version`; the first unrestricted audit rejected only the GitHub prerelease label. Retain all other online audits and checksum/signature/install checks, and remove this exception when publishing a stable version. Run local Homebrew QA with automatic update, cleanup, and analytics disabled as recorded in the tap instructions.

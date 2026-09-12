@@ -1,6 +1,6 @@
 # Electron release readiness
 
-Updated 2026-09-11. Chirpberry 0.2.0 remains an unnotarized implementation candidate. The native app and its document store remain separate. This checklist distinguishes implemented functionality, verification, and work that needs account or platform setup.
+Updated 2026-09-12. Chirpberry 0.2.0-preview.1 is published as an experimental, unnotarized Mac preview after explicit owner approval to publish before the remaining manual acceptance gates. This is not stable-release acceptance. See [the distribution receipt](preview-distribution.md). The native app and its document store remain separate. This checklist distinguishes implemented functionality, verification, and work that needs account or platform setup.
 
 ## Implemented
 
@@ -21,9 +21,9 @@ The full Electron stack is reviewed and merged into `main` through [PR #5](https
 
 A five-minute synthetic recording soak passed with 250 background notes: both streams stopped on Pause, Resume opened new streams, 300 finals persisted exactly once, and edited notes plus translations survived relaunch. The summed working set rose from 812 to 1,090 MiB; sustained memory performance remains open. No live audio or provider request was used.
 
-The onboarding package passed eight production Electron scenarios before the release review. Artifacts prepared from `9b8f21b` are held because they precede the audio-drain and startup fixes; they must not be published. The corrected `040e04e` artifacts passed clean-source preparation, mounted payload/signature checks, source/archive hashes, and all eight production packaged UI scenarios; see the [artifact receipt](electron-candidate-artifacts.md). They remain unpublished. The tested packages have not replaced the installed helper-recovery candidate. Installation is deferred at the user's request to leave the current app running. No app quit or replacement is authorized by these local checks.
+The onboarding package passed eight production Electron scenarios before the release review. Artifacts prepared from `9b8f21b` are held because they precede the audio-drain and startup fixes; they must not be published. The corrected `040e04e` artifacts passed clean-source preparation, mounted payload/signature checks, source/archive hashes, and all eight production packaged UI scenarios; see the [artifact receipt](electron-candidate-artifacts.md). Those exact artifacts are now published as `v0.2.0-preview.1` under the owner-approved experimental release exception. The tested packages have not replaced the installed helper-recovery candidate. Installation is deferred at the user's request to leave the current app running. No app quit or replacement is authorized by these local checks.
 
-## Required before release
+## Required before stable release and app replacement
 
 | Gate | Remaining acceptance |
 | --- | --- |
@@ -34,7 +34,7 @@ The onboarding package passed eight production Electron scenarios before the rel
 | macOS capture and shortcuts | Verify microphone/system-audio approval and denial, both streams with headphones, pause/resume/stop/close/quit, physical Fn outside Chirpberry, and foreground-window activation from the companion. |
 | Performance | Investigate growth observed in the five-minute synthetic recording run with longer per-process/heap measurements and post-stop observation. Measure consented real capture, longer idle, energy, and large-notebook interaction latency. The current synthetic and short idle measurements do not clear this gate. |
 | Windows and Linux | Verify actual microphone, permission, shortcut, persistence, clean install, and upgrade behavior on each OS; Windows loopback capture needs device acceptance. Linux system audio and calendar integration are unavailable. |
-| Distribution | Reviewed source is merged and exact-commit Mac artifacts, checksums, and mounted-payload checks are complete. Still required: real acceptance and clean installation, final accepted-source packaging, publication and re-download verification, then the Homebrew cask and website download. Follow [releasing](releasing.md). |
+| Distribution | The exact-source experimental Mac release is public; [the distribution receipt](preview-distribution.md) records downloads, cask installation, and website verification. Real first-launch/permission/provider acceptance and sustained performance remain open. Future stable packaging must use the final accepted clean source. Follow [releasing](releasing.md). |
 
 No keys should be pasted into chat or committed. Signing is currently ad-hoc on Mac and unsigned on Windows; notarization, certificate-backed signing, and an automatic updater are not configured. Keep the signing status visible in any approved release.
 

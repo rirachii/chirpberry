@@ -4,7 +4,13 @@ An original, open-source notebook for multilingual meetings. Electron is the app
 
 <img src="macOS/Artwork/Chirpberry.png" width="112" alt="Chirpberry's mulberry bird icon" />
 
-**Electron 0.2.0 is an implementation candidate, not a public desktop release.** The [website and quick start guide](https://chirpberry.vercel.app/get-started) are live. DMG and Homebrew publication still depend on [release acceptance](docs/release-readiness.md).
+**Electron 0.2.0-preview.1 is available as an experimental Mac preview.** [Download the DMG and source](https://github.com/rirachii/chirpberry/releases/tag/v0.2.0-preview.1) or follow the [quick-start guide](https://chirpberry.vercel.app/get-started). Requires Apple Silicon and macOS 26+. The app is ad-hoc signed and **not notarized**; macOS may block its first launch. Live provider/device and sustained-meeting performance acceptance remain incomplete. See [publication evidence and limits](docs/preview-distribution.md).
+
+```sh
+brew install --cask rirachii/tap/chirpberry
+```
+
+Homebrew uses `/Applications/Chirpberry Electron Candidate/Chirpberry.app`. Preserve the native app and never replace or force-install over a running candidate.
 
 ## Try the Electron candidate
 

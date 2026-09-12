@@ -26,3 +26,7 @@ Local artifact directory: `desktop/release/v0.2.0-darwin-arm64/` (ignored build 
 The earlier artifacts are retained under `desktop/release/held-9b8f21b-pre-drain-fix/` with a HOLD notice. They predate the audio-drain and startup fixes and must never be published. Regenerate public-release artifacts from the final accepted clean commit after the outstanding manual gates; do not relabel a held or modified package.
 
 The public guide was refreshed to this source commit in Vercel deployment `dpl_H6tDzhFBUTdofVchdKWLPvPgcKGk` from separate website source `9de0954`. The public alias and `/get-started` passed desktop/mobile, accessibility, navigation, and no-JavaScript checks. Website source and its receipt are committed locally in the separate checkout, which has no Git remote; they are not part of this desktop repository.
+
+## Draft distribution follow-up — 2026-09-12
+
+The same exact-source artifacts are now uploaded to a GitHub draft prerelease, with every server-reported hash verified. A canonical Homebrew cask draft PR and a tested, undeployed website download section are prepared. See [the distribution receipt](preview-distribution.md) for links, actual install/uninstall evidence, the Gatekeeper result, local QA side effects, and the remaining publication decision. The public alias and installer availability have not changed.

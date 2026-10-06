@@ -56,7 +56,12 @@ Record release URLs, source revision, artifact checksums, install evidence, and 
 
 ## Public website
 
-The live website is https://chirpberry.vercel.app, with the onboarding guide at `/get-started`. Its current source is maintained in the separate `chirpberry-web-onboarding` checkout (deployment receipt in that checkout's tracked docs). It has no Git remote configured; its local commits are not part of this repository. Preserve that distinction when reporting publication status.
+The live website is https://chirpberry.vercel.app, with the onboarding guide at `/get-started`.
+Its source is maintained in the independent Git repository colocated locally at `website/`, consolidated from `chirpberry-redesign` and `chirpberry-web-onboarding` on October 6, 2026.
+Deployment receipts remain in that repository's tracked `docs/`.
+It has no Git remote configured; its local commits are not part of the desktop repository.
+See [the workspace guide](workspace.md) for the active layout and archive.
+Preserve this repository and deployment distinction when reporting publication status.
 
 The `site/` directory here is the older native marketing draft. Do not deploy it over the current public project. Its checks remain in the core verification script for the preserved native implementation.
 

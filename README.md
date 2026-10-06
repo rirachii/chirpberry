@@ -2,6 +2,8 @@
 
 An original, open-source notebook for multilingual meetings. Electron is the approved desktop direction; the SwiftUI Mac app remains preserved during migration.
 
+The local [workspace guide](docs/workspace.md) covers the consolidated desktop app, public website checkout, Homebrew tap, and archived drafts.
+
 <img src="macOS/Artwork/Chirpberry.png" width="112" alt="Chirpberry's mulberry bird icon" />
 
 **Electron 0.2.0-preview.1 is available as an experimental Mac preview.** [Download the DMG and source](https://github.com/rirachii/chirpberry/releases/tag/v0.2.0-preview.1) or follow the [quick-start guide](https://chirpberry.vercel.app/get-started). Requires Apple Silicon and macOS 26+. The app is ad-hoc signed and **not notarized**; macOS may block its first launch. Live provider/device and sustained-meeting performance acceptance remain incomplete. See [publication evidence and limits](docs/preview-distribution.md).
@@ -62,7 +64,8 @@ npm run package:installers --prefix desktop
 
 The full verification script also requires Xcode and XcodeGen for the preserved native app. Installer packaging is unpublished by default. Mac artifacts are ad-hoc signed and **not notarized**; Windows installers are unsigned. Automated tests do not establish live provider success, OS consent, physical shortcuts, clean installation, or sustained real-meeting performance. Follow the [release procedure](docs/releasing.md) before publishing.
 
-The `site/` directory is a preserved native marketing draft. The current public website has a separate source checkout and deployment; see [website ownership](docs/releasing.md#public-website).
+The `site/` directory is a preserved native marketing draft.
+The current public website is maintained in the independent Git repository colocated locally at `website/`; see [website ownership](docs/releasing.md#public-website).
 
 ## Preserved SwiftUI app
 

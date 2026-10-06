@@ -5,6 +5,9 @@ The existing SwiftUI app in `macOS/` targets macOS 26 and Apple Silicon; the Ele
 Electron is the approved desktop direction. See `docs/desktop-framework-evaluation.md` and `desktop/README.md` for migration status.
 Preserve the native implementation and its in-progress work until equivalent Electron behavior is verified. Do not point the Electron candidate at the native document store by default.
 Read DESIGN.md, docs/architecture.md, and docs/plan.md before implementation changes.
+Use this checkout as the active Chirpberry workspace; see `docs/workspace.md` for its layout and preserved drafts.
+The public website lives in the independent, locally colocated `website/` repository; `site/` remains the preserved native marketing draft.
+The local `homebrew-tap` link points to the canonical shared tap repository.
 Valsea handles live speech, translation, and structured summaries; it is a hosted service with its own account and usage costs.
 Never describe cloud processing as offline or unlimited free transcription.
 

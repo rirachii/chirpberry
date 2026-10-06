@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, readdir, writeFile, copyFile } from 'node:fs/promises';
+import { access, mkdir, readdir, writeFile, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,8 +11,14 @@ run('swift', ['build', '-c', 'release']);
 const products = execFileSync('swift', ['build', '-c', 'release', '--show-bin-path'], { cwd: native, encoding: 'utf8' }).trim();
 const bundle = path.join(root, 'desktop/native-build/Chirpberry Capture.app/Contents');
 await mkdir(path.join(bundle, 'MacOS'), { recursive: true });
-const objects = (await readdir(path.join(products, 'ChirpberryCore.build'))).filter(name => name.endsWith('.o')).map(name => path.join(products, 'ChirpberryCore.build', name));
-run('xcrun', ['swiftc', '-O', '-parse-as-library', '-swift-version', '5', '-target', `${process.arch === 'arm64' ? 'arm64' : 'x86_64'}-apple-macos26.0`, '-I', path.join(products, 'Modules'),
+// Swift Build emits a combined object and module beside the products; older SwiftPM uses per-file objects.
+const coreObjects = path.join(products, 'ChirpberryCore.build');
+const legacyLayout = await access(coreObjects).then(() => true, () => false);
+const objects = legacyLayout
+  ? (await readdir(coreObjects)).filter(name => name.endsWith('.o')).map(name => path.join(coreObjects, name))
+  : [path.join(products, 'ChirpberryCore.o')];
+const modules = legacyLayout ? path.join(products, 'Modules') : products;
+run('xcrun', ['swiftc', '-O', '-parse-as-library', '-swift-version', '5', '-target', `${process.arch === 'arm64' ? 'arm64' : 'x86_64'}-apple-macos26.0`, '-I', modules,
   path.join(root, 'desktop/native/Bridge.swift'), path.join(root, 'desktop/native/AssistantKeychain.swift'), path.join(root, 'desktop/native/KeychainPresence.swift'), path.join(root, 'desktop/native/MeetingActivity.swift'), ...['AudioCapture.swift', 'Keychain.swift', 'CompanionShortcuts.swift'].map(name => path.join(native, 'App', name)), ...objects,
   '-o', path.join(bundle, 'MacOS/chirpberry-capture')]);
 await writeFile(path.join(bundle, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>

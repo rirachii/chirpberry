@@ -21,3 +21,7 @@ macOS/Resources/AppIcon.icns
 
 __pycache__/
 *.pyc
+
+# Colocated local repositories retain their own Git histories.
+/website/
+/homebrew-tap
